@@ -1,0 +1,63 @@
+# Deploys the static app to GitHub Pages (https://<user>.github.io/hunt-map/).
+# The repo holds only hand-written text files. At build time this workflow:
+#   - downloads Leaflet 1.9.4 from the npm registry (sha256-pinned) so the site is self-contained/offline,
+#   - fetches the AGFC WMA boundary and USFS MVUM roads (public data, no personal data),
+#   - generates the PNG icons with Pillow.
+# Parcel data is never part of the site: each phone fetches it from the AR GIS Office.
+name: Deploy to GitHub Pages
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Vendor Leaflet 1.9.4 (pinned)
+        run: |
+          npm pack leaflet@1.9.4 --silent
+          tar xzf leaflet-1.9.4.tgz
+          cp package/dist/leaflet.js package/dist/leaflet.css vendor/leaflet/
+          cd vendor/leaflet
+          echo "db49d009c841f5ca34a888c96511ae936fd9f5533e90d8b2c4d57596f4e5641a  leaflet.js" | sha256sum -c -
+          echo "a7837102824184820dfa198d1ebcd109ff6d0ff9a2672a074b9a1b4d147d04c6  leaflet.css" | sha256sum -c -
+      - name: Python deps
+        run: python3 -m pip install --quiet pillow shapely
+      - name: Fetch WMA boundary (AGFC)
+        run: python3 scripts/fetch-boundary.py
+      - name: Fetch USFS MVUM roads (optional)
+        run: python3 scripts/fetch-mvum.py || echo "::warning::MVUM fetch failed; site deploys without the roads layer"
+      - name: Generate PNG icons
+        run: python3 scripts/make-icons.py
+      - name: Assemble site
+        run: |
+          mkdir -p _site
+          cp -r index.html manifest.webmanifest sw.js .nojekyll css js vendor icons data _site/
+          rm -f _site/data/parcels*.geojson
+          # guard: no parcel / owner-name data may ever be deployed
+          if find _site/data -iname '*parcel*' | grep -q .; then echo "parcel file found"; exit 1; fi
+          if grep -qi "ownername" _site/data/*.geojson; then echo "owner-name data found"; exit 1; fi
+          find _site -type f | sort
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

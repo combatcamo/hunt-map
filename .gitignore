@@ -1,0 +1,9 @@
+node_modules/
+registry/*
+!registry/.gitkeep
+tests/output/
+screenshots/
+screenshots
+data/parcels*.geojson
+icons/*.png
+vendor/leaflet/images/
