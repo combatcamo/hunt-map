@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#000000">
+<meta name="color-scheme" content="dark">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Hunt Map">
+<title>Hunt Map – Mount Magazine WMA</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="map" aria-label="Map"></div>
+<div id="crosshair" aria-hidden="true"></div>
+
+<!-- top status line -->
+<div id="status" role="status">
+  <span id="st-gps">GPS: off</span>
+  <span id="st-net"></span>
+</div>
+<div id="parcel-note" hidden>Tax-map parcel lines are approximate and are not legal boundaries.</div>
+
+<!-- navigation readout -->
+<section id="nav" hidden aria-live="polite">
+  <div id="nav-arrow-wrap"><svg id="nav-arrow" viewBox="0 0 100 100" aria-hidden="true"><path d="M50 4 L84 92 L50 72 L16 92 Z"/></svg></div>
+  <div id="nav-text">
+    <div id="nav-target">Truck</div>
+    <div id="nav-bearing">—</div>
+    <div id="nav-dist">Waiting for GPS…</div>
+    <div id="nav-hint"></div>
+  </div>
+  <div id="nav-btns">
+    <button id="nav-change" class="small">Change</button>
+    <button id="nav-close" class="small" aria-label="Stop navigation">✕</button>
+  </div>
+</section>
+
+<!-- primary toolbar: max 5 buttons -->
+<nav id="toolbar">
+  <button id="btn-basemap" aria-label="Switch basemap"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z M9 4v14 M15 6v14"/></svg><span class="lbl" id="lbl-basemap">Topo</span></button>
+  <button id="btn-center" aria-label="Center on me"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.5" class="fill"/><path d="M12 1v4 M12 19v4 M1 12h4 M19 12h4"/></svg><span class="lbl">Me</span></button>
+  <button id="btn-pin" aria-label="Add pin"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s7-7.2 7-13a7 7 0 0 0-14 0c0 5.8 7 13 7 13z"/><path d="M12 5.5v7 M8.5 9h7"/></svg><span class="lbl">Pin</span></button>
+  <button id="btn-truck" aria-label="Back to truck"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 16V9h11v7 M13 11h4l4 3v2h-8"/><circle cx="6.5" cy="17.5" r="2"/><circle cx="17" cy="17.5" r="2"/></svg><span class="lbl">Truck</span></button>
+  <button id="btn-more" aria-label="More"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16 M4 12h16 M4 18h16"/></svg><span class="lbl">More</span></button>
+</nav>
+
+<!-- one reusable bottom sheet -->
+<div id="sheet-backdrop" hidden></div>
+<section id="sheet" hidden role="dialog" aria-modal="true">
+  <div id="sheet-body"></div>
+</section>
+<div id="toast" hidden></div>
+
+<input type="file" id="file-gpx" accept=".gpx,application/gpx+xml,application/xml,text/xml" multiple hidden>
+<input type="file" id="file-registry" accept=".json,.gpx,application/json,application/gpx+xml,application/xml" multiple hidden>
+<input type="file" id="file-pins" accept=".json,application/json" hidden>
+
+<script src="vendor/leaflet/leaflet.js"></script>
+<script src="js/geo.js"></script>
+<script src="js/gpx.js"></script>
+<script src="js/registry.js"></script>
+<script src="js/db.js"></script>
+<script src="js/offline.js"></script>
+<script src="js/parcels.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
