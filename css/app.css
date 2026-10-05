@@ -11,7 +11,6 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg);
   overscroll-behavior: none; -webkit-user-select: none; user-select: none; }
 #map { position: fixed; inset: 0; background: #0b0b0b; }
 .leaflet-container { background: #0b0b0b; font: inherit; }
-/* keep Leaflet bottom controls above our toolbar */
 .leaflet-bottom { bottom: calc(var(--tb-h) + var(--sab)); }
 .leaflet-control-attribution { background: rgba(0,0,0,.65) !important; color: #bbb; font-size: 11px; max-width: 75vw; }
 .leaflet-control-attribution a { color: #ddd; }
@@ -25,7 +24,6 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg);
 #crosshair::before { left: 21px; top: 0; width: 2px; height: 44px; }
 #crosshair::after { top: 21px; left: 0; height: 2px; width: 44px; }
 
-/* status */
 #status { position: fixed; z-index: 800; top: calc(var(--sat) + 6px); left: calc(var(--sal) + 8px);
   right: calc(var(--sar) + 8px); display: flex; gap: 8px; pointer-events: none; font-size: 15px; font-weight: 600; }
 #status span:not(:empty) { background: rgba(0,0,0,.75); border: 1px solid var(--line); padding: 4px 10px; border-radius: 16px; }
@@ -34,7 +32,6 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg);
   bottom: calc(var(--tb-h) + var(--sab) + 30px); background: rgba(40,30,0,.9); color: var(--warn);
   border: 1px solid var(--warn); border-radius: 10px; padding: 6px 10px; font-size: 14px; pointer-events: none; text-align: center; }
 
-/* toolbar */
 #toolbar { position: fixed; z-index: 900; left: 0; right: 0; bottom: 0; display: flex;
   padding: 6px calc(var(--sar) + 6px) calc(var(--sab) + 6px) calc(var(--sal) + 6px);
   gap: 6px; background: rgba(0,0,0,.92); border-top: 1px solid var(--line); }
@@ -55,7 +52,6 @@ button.small { min-height: 48px; padding: 0 12px; font-size: 16px; }
 button[disabled] { opacity: .4; }
 button.sel { border-color: var(--accent); background: #2b1f08; color: var(--accent); }
 
-/* nav readout */
 #nav { position: fixed; z-index: 850; top: calc(var(--sat) + 40px); left: calc(var(--sal) + 8px); right: calc(var(--sar) + 8px);
   background: rgba(0,0,0,.9); border: 2px solid var(--accent); border-radius: 18px; padding: 10px; display: flex; gap: 10px; align-items: center; }
 #nav[hidden] { display: none; }
@@ -68,7 +64,6 @@ button.sel { border-color: var(--accent); background: #2b1f08; color: var(--acce
 #nav-hint { font-size: 13px; color: var(--dim); }
 #nav-btns { display: flex; flex-direction: column; gap: 6px; }
 
-/* sheet */
 #sheet-backdrop { position: fixed; inset: 0; z-index: 950; background: rgba(0,0,0,.55); }
 #sheet { position: fixed; z-index: 960; left: 0; right: 0; bottom: 0; max-height: 86vh; overflow-y: auto;
   background: var(--panel); border-top: 2px solid #444; border-radius: 20px 20px 0 0;
@@ -104,7 +99,6 @@ progress { width: 100%; height: 22px; accent-color: var(--accent); }
   background: #222; border: 2px solid var(--accent); color: var(--fg); padding: 10px 16px; border-radius: 14px; font-weight: 700;
   max-width: 90vw; text-align: center; }
 
-/* markers */
 .pin-ico { background: none; border: none; }
 .pin-ico svg { width: 44px; height: 44px; filter: drop-shadow(0 1px 2px #000); }
 .pin-label { background: rgba(0,0,0,.75); color: #fff; border: none; box-shadow: none; font-weight: 700; font-size: 13px; padding: 1px 6px; }
@@ -120,14 +114,23 @@ progress { width: 100%; height: 22px; accent-color: var(--accent); }
 .leaflet-container a.leaflet-popup-close-button { color: #ccc; font-size: 26px; width: 36px; height: 36px; }
 .popup-note { color: var(--warn); font-size: 13px; margin-top: 6px; }
 
-/* ===== Red night mode: everything red on black ===== */
 body.night { --fg: #ff3b30; --dim: #b3241c; --accent: #ff2a1a; --ok: #ff5040; --warn: #ff3b30; --danger: #ff6b5f;
   --panel: #0a0000; --panel2: #140000; --line: #3a0000; }
 body.night button { border-color: #4a0000; }
 body.night button.primary { background: #a00; color: #000; border-color: #a00; }
 body.night .leaflet-tile-pane { filter: brightness(.45); }
-/* topo is mostly white paper: invert it so the night map is dark with lit contour lines */
 body.night.base-topo .leaflet-tile-pane { filter: invert(1) brightness(.75) contrast(1.1); }
 body.night .leaflet-overlay-pane, body.night .leaflet-marker-pane, body.night .leaflet-tooltip-pane { filter: brightness(.8); }
 body.night::after { content: ""; position: fixed; inset: 0; z-index: 99999; pointer-events: none;
   background: #ff0000; mix-blend-mode: multiply; }
+
+/* Hunt Scout top-10 numbered stand markers */
+.top10-ico { background: none; border: none; }
+.top10-badge { width: 28px; height: 28px; border-radius: 50%; background: var(--accent); color: #000;
+  font: 700 14px/28px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; text-align: center;
+  box-shadow: 0 0 0 2px #000; }
+.top10-badge.warn { background: var(--warn); }
+.caution { color: var(--warn); font-weight: 700; }
+.layer-waiting { opacity: .55; }
+.wind-box { background: #0a0a0a; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin: 8px 0; }
+.wind-box .big { font-size: 22px; font-weight: 800; color: var(--accent); }
