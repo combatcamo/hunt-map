@@ -32,9 +32,15 @@ Sources were cross-checked against Hunt Scout's research note `/workspace/hunt-s
 
 ## data/mvum.geojson — USFS Motor Vehicle Use Map roads and trails
 - **Source:** USDA Forest Service EDW `https://apps.fs.usda.gov/arcx/rest/services/EDW/EDW_MVUM_02/MapServer` layers 1 (roads) and 2 (trails).
-- **Selection:** lines intersecting the WMA boundary + ~300 m. 249 features (mostly roads, a few trails), 320 KB.
+- **Selection:** lines intersecting the WMA boundary + ~300 m. 249 features (mostly roads, a few trails).
+- **In the repo:** committed as `data/mvum-1.geojson` + `data/mvum-2.geojson` (coordinates rounded to 5 decimals) so the Pages build does not depend on the flaky USFS endpoint. The workflow merges them into `mvum.geojson`; the app can also load and merge the parts directly.
 - **License:** USFS data is US federal government work (public domain). It's a snapshot, so check the current MVUM and posted signs.
-- **Refresh:** `/workspace/.venv-hunt/bin/python scripts/fetch-mvum.py`
+- **Refresh:** `python3 scripts/fetch-mvum.py` then re-split if you need to update the committed parts.
+
+## Hunt Scout mapdata (hot-add)
+- Planned GeoJSONs under `/workspace/hunt-scout/mapdata/` are copied into `data/` by `scripts/sync-mapdata.sh`.
+- Layers: wma_boundary, state_park_exclusion, saddles, benches, ridge_spurs, drainages, pinch_points, likely_bedding, food_sources, water, roads_100ft_buffer, access_parking, plus top10_stands.geojson and wind_grid.geojson.
+- Until a file lands, its toggle shows as *waiting*. No scrapes (field sign).
 
 ## Basemap tiles (not stored in the repo; cached on the phone when you download)
 - USGS The National Map: `USGSTopo`, `USGSImageryOnly`, `USGSImageryTopo` (hybrid) tile services at
@@ -45,3 +51,12 @@ Sources were cross-checked against Hunt Scout's research note `/workspace/hunt-s
 
 ## Vendored library
 - Leaflet 1.9.4 (BSD-2-Clause), `vendor/leaflet/`, license in `vendor/leaflet/LICENSE`.
+
+## Hunt Scout mapdata (synced)
+Copied by `scripts/sync-scout-layers.sh` from `/workspace/hunt-scout/mapdata/`.
+Includes WMA/park/roads/terrain candidates, top10 stands, and `wind_grid.geojson.gz` (gzipped 24h NWS grid).
+Empty layers (ridge_spurs, drainages, food_sources, food_influence, deer_sign, sign_lines, sign_influence when empty) are not shipped. Non-empty: water_influence (and food/sign layers when Scout fills them). `_scratch/` is never published.
+
+
+## Wind
+Live: NWS (`js/nws.js`). Optional grid: `wind_grid.geojson.gz.b64` (stale-ok). Scout owns `wind_refresh.py`.
