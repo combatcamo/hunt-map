@@ -1,9 +1,6 @@
 # Deploys the static app to GitHub Pages (https://<user>.github.io/hunt-map/).
-# The repo holds only hand-written text files. At build time this workflow:
-#   - downloads Leaflet 1.9.4 from the npm registry (sha256-pinned) so the site is self-contained/offline,
-#   - fetches the AGFC WMA boundary and USFS MVUM roads (public data, no personal data),
-#   - generates the PNG icons with Pillow.
 # Parcel data is never part of the site: each phone fetches it from the AR GIS Office.
+# Boundary + MVUM parts are committed; workflow merges parts / falls back to fetch.
 name: Deploy to GitHub Pages
 on:
   push:
@@ -35,10 +32,21 @@ jobs:
           echo "a7837102824184820dfa198d1ebcd109ff6d0ff9a2672a074b9a1b4d147d04c6  leaflet.css" | sha256sum -c -
       - name: Python deps
         run: python3 -m pip install --quiet pillow shapely
-      - name: Fetch WMA boundary (AGFC)
-        run: python3 scripts/fetch-boundary.py
-      - name: Fetch USFS MVUM roads (optional)
-        run: python3 scripts/fetch-mvum.py || echo "::warning::MVUM fetch failed; site deploys without the roads layer"
+      - name: Ensure WMA boundary (committed, else fetch)
+        run: |
+          if [ -f data/wma-boundary.geojson ]; then echo "using committed wma-boundary.geojson"; else python3 scripts/fetch-boundary.py; fi
+      - name: Ensure USFS MVUM roads (committed parts, else fetch)
+        run: |
+          if ls data/mvum-*.geojson >/dev/null 2>&1; then
+            python3 -c "import json,glob;ps=sorted(glob.glob('data/mvum-*.geojson'));feats=[];\
+[feats.extend(json.load(open(p))['features']) for p in ps];\
+json.dump({'type':'FeatureCollection','features':feats},open('data/mvum.geojson','w'),separators=(',',':'));\
+print('merged',len(feats),'from',len(ps),'parts')"
+          elif [ -f data/mvum.geojson ]; then
+            echo "using committed mvum.geojson"
+          else
+            python3 scripts/fetch-mvum.py || echo "::warning::MVUM fetch failed; site deploys without the roads layer"
+          fi
       - name: Generate PNG icons
         run: python3 scripts/make-icons.py
       - name: Assemble site
@@ -46,9 +54,8 @@ jobs:
           mkdir -p _site
           cp -r index.html manifest.webmanifest sw.js .nojekyll css js vendor icons data _site/
           rm -f _site/data/parcels*.geojson
-          # guard: no parcel / owner-name data may ever be deployed
           if find _site/data -iname '*parcel*' | grep -q .; then echo "parcel file found"; exit 1; fi
-          if grep -qi "ownername" _site/data/*.geojson; then echo "owner-name data found"; exit 1; fi
+          if ls _site/data/*.geojson >/dev/null 2>&1 && grep -qi "ownername" _site/data/*.geojson; then echo "owner-name data found"; exit 1; fi
           find _site -type f | sort
       - name: Setup Pages
         uses: actions/configure-pages@v5
