@@ -8,7 +8,7 @@ var TILE_CACHE = 'hm-tiles-v1';
 var REG_CACHE = 'hm-registry-v1';
 var SHELL = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
-  'js/geo.js', 'js/gpx.js', 'js/registry.js', 'js/db.js', 'js/offline.js', 'js/parcels.js', 'js/trail.js', 'js/nws.js', 'js/layers.js', 'js/app.js',
+  'js/geo.js', 'js/gpx.js', 'js/registry.js', 'js/db.js', 'js/offline.js', 'js/parcels.js', 'js/trail.js', 'js/nws.js', 'js/layers.js', 'js/app-boot.js', 'js/app.js.gz.b64', 'js/app.js',
   'vendor/leaflet/leaflet.js', 'vendor/leaflet/leaflet.css',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png', 'icons/icon-maskable-512.png',
   'data/wma-boundary.geojson', 'data/mvum.geojson', 'data/mvum-1.geojson', 'data/mvum-2.geojson', 'data/mvum-3.geojson',
