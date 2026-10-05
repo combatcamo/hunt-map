@@ -7,3 +7,6 @@ screenshots
 data/parcels*.geojson
 icons/*.png
 vendor/leaflet/images/
+
+# full MVUM is assembled from mvum-1/2 (or local fetch); parts are committed
+data/mvum.geojson
