@@ -38,10 +38,7 @@ jobs:
       - name: Ensure USFS MVUM roads (committed parts, else fetch)
         run: |
           if ls data/mvum-*.geojson >/dev/null 2>&1; then
-            python3 -c "import json,glob;ps=sorted(glob.glob('data/mvum-*.geojson'));feats=[];\
-[feats.extend(json.load(open(p))['features']) for p in ps];\
-json.dump({'type':'FeatureCollection','features':feats},open('data/mvum.geojson','w'),separators=(',',':'));\
-print('merged',len(feats),'from',len(ps),'parts')"
+            python3 -c "import json,glob;ps=sorted(glob.glob('data/mvum-*.geojson'));feats=[];[feats.extend(json.load(open(p))['features']) for p in ps];json.dump({'type':'FeatureCollection','features':feats},open('data/mvum.geojson','w'),separators=(',',':'));print('merged',len(feats),'from',len(ps),'parts')"
           elif [ -f data/mvum.geojson ]; then
             echo "using committed mvum.geojson"
           else
