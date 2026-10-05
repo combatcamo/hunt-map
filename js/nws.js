@@ -61,6 +61,7 @@
   function compassToDeg(t) { return COMPASS[String(t || '').trim().toUpperCase()]; }
   function kmhToMph(v) { return v == null ? null : Math.round(v / 1.609344 * 10) / 10; }
 
+  /** Instantaneous grid series value at time t (ISO), picking the covering validTime interval. */
   function seriesAt(series, t) {
     var vals = (series && series.values) || [], ms = +new Date(t);
     for (var i = 0; i < vals.length; i++) {
@@ -72,11 +73,13 @@
     return null;
   }
   function parseDurationMs(iso) {
+    // PT2H / PT1H30M
     var m = String(iso).match(/^PT(?:(\d+)H)?(?:(\d+)M)?$/i);
     if (!m) return 3600000;
     return ((+m[1] || 0) * 3600 + (+m[2] || 0) * 60) * 1000;
   }
 
+  /** Hourly forecast periods (next ~48h) with compass wind text. */
   function hourly(lat, lon) {
     var k = key('hr', lat, lon);
     return readCache(k).then(function (hit) {
@@ -100,6 +103,7 @@
     });
   }
 
+  /** Grid-derived hourly wind: direction FROM degrees, speed/gust mph. */
   function gridWind(lat, lon, hours) {
     hours = hours || 24;
     var k = key('gw', lat, lon);
@@ -123,6 +127,7 @@
     });
   }
 
+  /** Current / next-hour wind summary for a stand popup. */
   function standWind(lat, lon) {
     return Promise.all([
       hourly(lat, lon).catch(function (e) { return { error: e.message, periods: [] }; }),

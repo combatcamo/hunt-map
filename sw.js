@@ -2,19 +2,24 @@
    - App shell + data: precached, served cache-first, refreshed in the background (stale-while-revalidate).
    - Map tiles (basemap.nationalmap.gov): cache-first from "hm-tiles-v1"; tiles you view online are kept too.
    - ./registry/*: network-first, cached copy when offline. */
-var VERSION = 'v1.2.0';
+var VERSION = 'v1.3.0';
 var SHELL_CACHE = 'hm-shell-' + VERSION;
 var TILE_CACHE = 'hm-tiles-v1';
 var REG_CACHE = 'hm-registry-v1';
 var SHELL = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
-  'js/geo.js', 'js/gpx.js', 'js/registry.js', 'js/db.js', 'js/offline.js', 'js/parcels.js', 'js/nws.js', 'js/layers.js', 'js/app.js',
+  'js/geo.js', 'js/gpx.js', 'js/registry.js', 'js/db.js', 'js/offline.js', 'js/parcels.js', 'js/trail.js', 'js/nws.js', 'js/layers.js', 'js/app.js',
   'vendor/leaflet/leaflet.js', 'vendor/leaflet/leaflet.css',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png', 'icons/icon-maskable-512.png',
-  'data/wma-boundary.geojson', 'data/mvum.geojson', 'data/mvum-1.geojson', 'data/mvum-2.geojson', 'data/mvum-3.geojson'
+  'data/wma-boundary.geojson', 'data/mvum.geojson', 'data/mvum-1.geojson', 'data/mvum-2.geojson', 'data/mvum-3.geojson',
+  'data/wma_boundary.geojson', 'data/state_park_exclusion.geojson', 'data/roads_100ft_buffer.geojson',
+  'data/roads_centerlines.geojson', 'data/access_parking.geojson', 'data/saddles.geojson', 'data/benches.geojson',
+  'data/likely_bedding.geojson', 'data/pinch_points.geojson', 'data/water.geojson', 'data/water_influence.geojson', 'data/top10_stands.geojson',
+  'data/wind_grid.geojson.gz.b64'
 ];
 self.addEventListener('install', function (e) {
   e.waitUntil(caches.open(SHELL_CACHE).then(function (c) {
+    // add individually so one missing optional file doesn't break install
     return Promise.all(SHELL.map(function (u) { return c.add(new Request(u, { cache: 'reload' })).catch(function () {}); }));
   }).then(function () { return self.skipWaiting(); }));
 });
@@ -52,6 +57,7 @@ self.addEventListener('fetch', function (e) {
     }));
     return;
   }
+  // app shell: stale-while-revalidate
   e.respondWith(caches.open(SHELL_CACHE).then(function (cache) {
     var key = req.mode === 'navigate' ? 'index.html' : req;
     return cache.match(key, { ignoreSearch: true }).then(function (hit) {
