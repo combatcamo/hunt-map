@@ -1,7 +1,7 @@
-/* Tiny IndexedDB wrapper. Stores: pins (keyPath id), routes (keyPath id), kv (settings). */
+/* Tiny IndexedDB wrapper. Stores: pins, routes, trail (keyPath t), kv (settings). */
 (function (root) {
   'use strict';
-  var DB_NAME = 'huntmap', VERSION = 1, dbp = null;
+  var DB_NAME = 'huntmap', VERSION = 2, dbp = null;
   function open() {
     if (dbp) return dbp;
     dbp = new Promise(function (resolve, reject) {
@@ -10,6 +10,7 @@
         var db = req.result;
         if (!db.objectStoreNames.contains('pins')) db.createObjectStore('pins', { keyPath: 'id' });
         if (!db.objectStoreNames.contains('routes')) db.createObjectStore('routes', { keyPath: 'id' });
+        if (!db.objectStoreNames.contains('trail')) db.createObjectStore('trail', { keyPath: 't' });
         if (!db.objectStoreNames.contains('kv')) db.createObjectStore('kv');
       };
       req.onsuccess = function () { resolve(req.result); };
