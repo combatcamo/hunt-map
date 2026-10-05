@@ -4,6 +4,7 @@
 (function (root) {
   'use strict';
 
+  /** Planned Scout overlay GeoJSONs (EPSG:4326). Every feature: layer, name, description. */
   var SCOUT_OVERLAYS = [
     { id: 'wma_boundary', file: 'data/wma_boundary.geojson', label: 'WMA boundary (Scout)', kind: 'poly', color: '#7CFF00', weight: 3, fill: false },
     { id: 'state_park_exclusion', file: 'data/state_park_exclusion.geojson', label: 'State park (no hunt)', kind: 'poly', color: '#ff4d4d', weight: 2, fill: true, fillOpacity: 0.15 },
@@ -20,7 +21,7 @@
   ];
   var TOP10_FILE = 'data/top10_stands.geojson';
   var WIND_GRID_FILE = 'data/wind_grid.geojson';
-  var WIND_GRID_TTL_MS = 60 * 60 * 1000;
+  var WIND_GRID_TTL_MS = 60 * 60 * 1000; // refresh / hourly cache
   var WIND_CACHE = 'hm-windgrid-v1';
 
   function fetchGj(url) {
@@ -34,6 +35,7 @@
     });
   }
 
+  /** Probe which Scout layer files exist. Resolves [{id,label,file,status:'ready'|'waiting', count?}]. */
   function probe() {
     return Promise.all(SCOUT_OVERLAYS.map(function (def) {
       return fetchGj(def.file).then(function (gj) {
@@ -53,7 +55,7 @@
     return '<b>' + esc(name) + '</b>' + (layer ? '<br><span class="muted">' + esc(layer) + '</span>' : '') +
       (desc ? '<br>' + esc(desc) : '');
   }
-  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return ({ '&': '&', '<': '<', '>': '>', '"': '"', "'": '&#39;' })[c]; }); }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]; }); }
 
   function styleFor(def) {
     return {
@@ -62,6 +64,7 @@
     };
   }
 
+  /** Build a Leaflet layer group from GeoJSON + def. Uses window.L. */
   function makeOverlay(def, gj, L) {
     return L.geoJSON(gj, {
       style: function () { return styleFor(def); },
@@ -72,6 +75,7 @@
     });
   }
 
+  /** top10_stands.geojson → pin-like records. Prefer id mm-01..; else name. */
   function normalizeTop10(gj) {
     if (!gj || !gj.features) return [];
     return gj.features.map(function (f, i) {
@@ -111,7 +115,7 @@
         if (typeof caches !== 'undefined') {
           caches.open(WIND_CACHE).then(function (c) {
             c.put(windGridKey(), new Response(JSON.stringify(gj), {
-              headers: { 'Content-Type': 'application/geo+json', 'X-Cached': new Date().toISOString()
+              headers: { 'Content-Type': 'application/geo+json', 'X-Cached': new Date().toISOString() }
             }));
           }).catch(function () {});
         }
@@ -127,6 +131,7 @@
     }).catch(loadNet);
   }
 
+  /** Nearest wind_grid point to lat/lon; returns feature properties (with hours[]) or null. */
   function nearestWind(gj, lat, lon) {
     if (!gj || !gj.features || !gj.features.length) return null;
     var best = null, bestD = Infinity;
@@ -138,6 +143,7 @@
     return best ? Object.assign({ _lon: best.geometry.coordinates[0], _lat: best.geometry.coordinates[1] }, best.properties || {}) : null;
   }
 
+  /** Load MVUM from single file or merged parts (committed as mvum-1/2 for GitHub size limits). */
   function loadMvum() {
     var parts = [];
     for (var i = 1; i <= 6; i++) parts.push(fetchGj('data/mvum-' + i + '.geojson'));
