@@ -7,25 +7,21 @@
   /** Planned Scout overlay GeoJSONs (EPSG:4326). Every feature: layer, name, description. */
   var SCOUT_OVERLAYS = [
     { id: 'wma_boundary', file: 'data/wma_boundary.geojson', label: 'WMA boundary (Scout)', kind: 'poly', color: '#7CFF00', weight: 3, fill: false },
-    { id: 'state_park_exclusion', file: 'data/state_park_exclusion.geojson', label: 'State park — NO HUNT', kind: 'poly', color: '#ff4d4d', weight: 2, fill: true, fillOpacity: 0.28 },
-    { id: 'roads_100ft_buffer', file: 'data/roads_100ft_buffer.geojson', label: 'Roads ±100 ft (no hunt)', kind: 'poly', color: '#ff6b6b', weight: 1, fill: true, fillOpacity: 0.18 },
-    { id: 'roads_centerlines', file: 'data/roads_centerlines.geojson', label: 'WMA road centerlines', kind: 'line', color: '#9e9e9e', weight: 2 },
-    { id: 'access_parking', file: 'data/access_parking.geojson', label: 'Access / parking', kind: 'point', color: '#1e90ff' },
-    { id: 'saddles', file: 'data/saddles.geojson', label: 'Saddles', kind: 'point', color: '#ab47bc' },
-    { id: 'benches', file: 'data/benches.geojson', label: 'Benches', kind: 'point', color: '#42a5f5' },
-    { id: 'likely_bedding', file: 'data/likely_bedding.geojson', label: 'Likely bedding (scout to confirm)', kind: 'point', color: '#8d6e63' },
-    { id: 'pinch_points', file: 'data/pinch_points.geojson', label: 'Pinch points', kind: 'point', color: '#ff6b6b' },
-    { id: 'water', file: 'data/water.geojson', label: 'Water (Scout/NHD)', kind: 'any', color: '#29b6f6', weight: 2, fill: true, fillOpacity: 0.35 },
-    { id: 'water_influence', file: 'data/water_influence.geojson', label: 'Water influence', kind: 'poly', color: '#4fc3f7', weight: 1, fill: true, fillOpacity: 0.16 },
-    { id: 'food_sources', file: 'data/food_sources.geojson', label: 'Food sources (Scout)', kind: 'any', color: '#c6ff00', weight: 2, fill: true, fillOpacity: 0.25 },
-    { id: 'food_influence', file: 'data/food_influence.geojson', label: 'Food influence (Scout)', kind: 'poly', color: '#aeea00', weight: 1, fill: true, fillOpacity: 0.15 },
-    { id: 'deer_sign', file: 'data/deer_sign.geojson', label: 'Deer sign', kind: 'point', color: '#ff8a65' },
-    { id: 'sign_lines', file: 'data/sign_lines.geojson', label: 'Sign lines', kind: 'line', color: '#ffab91', weight: 3 },
-    { id: 'sign_influence', file: 'data/sign_influence.geojson', label: 'Sign influence', kind: 'poly', color: '#ffccbc', weight: 1, fill: true, fillOpacity: 0.18 }
+    { id: 'state_park_exclusion', file: 'data/state_park_exclusion.geojson', label: 'State park (no hunt)', kind: 'poly', color: '#ff4d4d', weight: 2, fill: true, fillOpacity: 0.15 },
+    { id: 'saddles', file: 'data/saddles.geojson', label: 'Saddles', kind: 'any', color: '#ff9f1a', weight: 2 },
+    { id: 'benches', file: 'data/benches.geojson', label: 'Benches', kind: 'any', color: '#c4a35a', weight: 2 },
+    { id: 'ridge_spurs', file: 'data/ridge_spurs.geojson', label: 'Ridge spurs', kind: 'line', color: '#e6c35c', weight: 2 },
+    { id: 'drainages', file: 'data/drainages.geojson', label: 'Drainages', kind: 'line', color: '#4fc3f7', weight: 2 },
+    { id: 'pinch_points', file: 'data/pinch_points.geojson', label: 'Pinch points', kind: 'any', color: '#ff6b6b', weight: 3 },
+    { id: 'likely_bedding', file: 'data/likely_bedding.geojson', label: 'Likely bedding', kind: 'poly', color: '#8d6e63', weight: 1, fill: true, fillOpacity: 0.25 },
+    { id: 'food_sources', file: 'data/food_sources.geojson', label: 'Food sources', kind: 'any', color: '#66bb6a', weight: 2 },
+    { id: 'water', file: 'data/water.geojson', label: 'Water', kind: 'any', color: '#29b6f6', weight: 2, fill: true, fillOpacity: 0.3 },
+    { id: 'roads_100ft_buffer', file: 'data/roads_100ft_buffer.geojson', label: 'Roads ±100 ft', kind: 'poly', color: '#aaa', weight: 1, fill: true, fillOpacity: 0.12 },
+    { id: 'access_parking', file: 'data/access_parking.geojson', label: 'Access / parking', kind: 'point', color: '#1e90ff' }
   ];
   var TOP10_FILE = 'data/top10_stands.geojson';
-  var WIND_GRID_FILE = 'data/wind_grid.geojson.gz.b64'; // optional arrow field (stale-ok). Live wind = NWS (js/nws.js).
-  var WIND_GRID_TTL_MS = 15 * 60 * 1000; // refresh / cache ≥15 min
+  var WIND_GRID_FILE = 'data/wind_grid.geojson';
+  var WIND_GRID_TTL_MS = 60 * 60 * 1000; // refresh / hourly cache
   var WIND_CACHE = 'hm-windgrid-v1';
 
   function fetchGj(url) {
@@ -89,32 +85,17 @@
       var lat = p.lat != null ? +p.lat : (coords ? coords[1] : null);
       var lon = p.lon != null ? +p.lon : (coords ? coords[0] : null);
       if (!isFinite(lat) || !isFinite(lon)) return null;
-      // Prefer explicit id (mm-01..); else parse from name; else index
-      var id = String(p.id || '').toLowerCase().replace(/\s+/g, '-');
-      if (!/^mm-\d+$/i.test(id)) {
-        var m = String(p.name || '').match(/mm-?(\d+)/i);
-        id = m ? ('mm-' + String(m[1]).padStart(2, '0')) : ('mm-' + String(i + 1).padStart(2, '0'));
-      }
-      var rawName = String(p.name || id.toUpperCase());
-      // Label as "MM-01 Name" (id is the key; names can repeat)
-      var name = /^mm-\d+/i.test(rawName) ? rawName : (id.toUpperCase() + ' ' + rawName);
-      var rank = p.rank != null ? +p.rank : (parseInt((id.match(/\d+/) || [i + 1])[0], 10) || (i + 1));
-      var chg = p.rank_change;
-      if (chg == null || chg === '') chg = 0;
-      else if (typeof chg === 'string' && !/^[+-]?\d+(\.\d+)?$/.test(chg.trim())) chg = 0;
-      else chg = +chg;
+      var name = String(p.name || ('MM-' + String(i + 1).padStart(2, '0')));
+      var id = String(p.id || name).toLowerCase().replace(/\s+/g, '-');
+      if (!/^mm-?\d+/i.test(id) && /^mm-?\d+/i.test(name)) id = name.toLowerCase().replace(/\s+/g, '-');
+      var rank = p.rank != null ? +p.rank : (parseInt(String(name).replace(/\D/g, ''), 10) || (i + 1));
       return {
         id: id, name: name, rank: rank, type: 'stand', subtype: p.feature_type || '',
         lat: lat, lon: lon, elevation_ft: p.elevation_ft, feature_type: p.feature_type || '',
         why: p.why || '', best_winds: normList(p.best_winds), skip_winds: normList(p.skip_winds),
         best_time: p.best_time || '', access_note: p.access_note || '',
         boundary_check: p.boundary_check || '', notes: p.why || '', source: 'top10',
-        unverified: String(p.boundary_check || '').toLowerCase() === 'unverified',
-        rank_score: p.rank_score != null ? +p.rank_score : null,
-        rank_change: chg,
-        water_bonus: +p.water_bonus || 0, food_bonus: +p.food_bonus || 0, sign_bonus: +p.sign_bonus || 0,
-        near_water: p.near_water || null, near_food: p.near_food || null, near_sign: p.near_sign || null,
-        sign_hot: !!p.sign_hot
+        unverified: String(p.boundary_check || '').toLowerCase() === 'unverified'
       };
     }).filter(Boolean).sort(function (a, b) { return a.rank - b.rank; });
   }
@@ -127,51 +108,27 @@
   function loadTop10() { return fetchGj(TOP10_FILE).then(normalizeTop10); }
 
   function windGridKey() { return new URL('offline-data/wind_grid.geojson', root.location ? root.location.href : 'http://x/').href; }
-  function gunzipJson(buf) {
-    if (typeof DecompressionStream === 'undefined') {
-      return Promise.reject(new Error('Gzip not supported in this browser'));
-    }
-    var ds = new DecompressionStream('gzip');
-    var stream = new Response(buf).body.pipeThrough(ds);
-    return new Response(stream).json();
-  }
-  function b64ToBytes(b64) {
-    var bin = atob(b64.replace(/\s/g, '')), out = new Uint8Array(bin.length);
-    for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
-    return out;
-  }
-  function fetchWindGridNet() {
-    return fetch(WIND_GRID_FILE, { cache: 'no-store' }).then(function (r) {
-      if (r.status === 404) return null;
-      if (!r.ok) throw new Error('wind grid HTTP ' + r.status);
-      if (/\.b64$/i.test(WIND_GRID_FILE)) {
-        return r.text().then(function (t) { return gunzipJson(b64ToBytes(t).buffer); });
-      }
-      var ct = (r.headers.get('content-type') || '') + WIND_GRID_FILE;
-      if (/gzip|\.gz/i.test(ct) || /\.gz$/i.test(WIND_GRID_FILE)) {
-        return r.arrayBuffer().then(gunzipJson);
-      }
-      return r.json();
-    }).then(function (gj) {
-      if (!gj) return null;
-      if (typeof caches !== 'undefined') {
-        caches.open(WIND_CACHE).then(function (c) {
-          c.put(windGridKey(), new Response(JSON.stringify(gj), {
-            headers: { 'Content-Type': 'application/geo+json', 'X-Cached': new Date().toISOString()
-          }));
-        }).catch(function () {});
-      }
-      return gj;
-    });
-  }
   function loadWindGrid(force) {
-    if (force || typeof caches === 'undefined') return fetchWindGridNet();
+    var loadNet = function () {
+      return fetchGj(WIND_GRID_FILE).then(function (gj) {
+        if (!gj) return null;
+        if (typeof caches !== 'undefined') {
+          caches.open(WIND_CACHE).then(function (c) {
+            c.put(windGridKey(), new Response(JSON.stringify(gj), {
+              headers: { 'Content-Type': 'application/geo+json', 'X-Cached': new Date().toISOString() }
+            }));
+          }).catch(function () {});
+        }
+        return gj;
+      });
+    };
+    if (force || typeof caches === 'undefined') return loadNet();
     return caches.open(WIND_CACHE).then(function (c) { return c.match(windGridKey()); }).then(function (r) {
-      if (!r) return fetchWindGridNet();
+      if (!r) return loadNet();
       var age = Date.now() - Date.parse(r.headers.get('X-Cached') || 0);
-      if (age > WIND_GRID_TTL_MS) return fetchWindGridNet();
+      if (age > WIND_GRID_TTL_MS) return loadNet();
       return r.json();
-    }).catch(fetchWindGridNet);
+    }).catch(loadNet);
   }
 
   /** Nearest wind_grid point to lat/lon; returns feature properties (with hours[]) or null. */
