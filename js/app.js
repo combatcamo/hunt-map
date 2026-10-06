@@ -687,14 +687,14 @@
   }
   function refreshWind() {
     var ll = S.me ? [S.me.lat, S.me.lon] : (S.map ? [S.map.getCenter().lat, S.map.getCenter().lng] : WMA_CENTER);
-    if (!window.NWS || !NWS.windAt) { var el = document.getElementById('st-net'); if (el && !el.textContent) el.textContent = 'Wind: —'; return; }
-    NWS.windAt(ll[0], ll[1]).then(function (w) {
-      S.wind = w;
+    if (!window.NWS || !NWS.standWind) return;
+    NWS.standWind(ll[0], ll[1]).then(function (w) {
+      S.wind = w || {};
       var el = document.getElementById('st-net');
       if (!el) return;
-      var dir = w.direction || w.windDirection || '';
-      var spd = w.speedMph != null ? w.speedMph : (w.speed || '');
-      el.textContent = 'Wind ' + dir + ' ' + spd + (String(spd).indexOf('mph') >= 0 ? '' : ' mph');
+      var dir = w.compass || w.direction || w.windDirection || '';
+      var spd = w.mph != null ? w.mph : (w.speedMph != null ? w.speedMph : (w.speed || ''));
+      el.textContent = dir ? ('Wind ' + dir + (spd === '' ? '' : ' ' + spd) + (String(spd).indexOf('mph') >= 0 || spd === '' ? '' : ' mph')) : 'Wind —';
     }).catch(function () {});
   }
   function movementSheet() {
