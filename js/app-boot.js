@@ -1,4 +1,4 @@
-/* Load js/app.js.gz.b64 (gzip+base64) then run. Fallback: plain app.js if present. */
+/* Prefer plain app.js. gzip+base64 shell is optional and was only a size workaround. */
 (function () {
   function fail(e) { console.error('app boot', e); var t=document.getElementById('toast'); if(t){t.hidden=false;t.textContent='App failed to load';} }
   function run(code) { (0, eval)(code); }
@@ -11,13 +11,13 @@
     for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
     return out.buffer;
   }
-  fetch('js/app.js.gz.b64', { cache: 'no-store' }).then(function (r) {
-    if (!r.ok) throw new Error('b64 ' + r.status);
-    return r.text().then(function (t) { return gunzip(b64ToBuf(t)); }).then(run);
+  fetch('js/app.js', { cache: 'no-store' }).then(function (r) {
+    if (!r.ok) throw new Error('app.js ' + r.status);
+    return r.text().then(run);
   }).catch(function () {
-    return fetch('js/app.js', { cache: 'no-store' }).then(function (r) {
-      if (!r.ok) throw new Error('app.js ' + r.status);
-      return r.text().then(run);
+    return fetch('js/app.js.gz.b64', { cache: 'no-store' }).then(function (r) {
+      if (!r.ok) throw new Error('b64 ' + r.status);
+      return r.text().then(function (t) { return gunzip(b64ToBuf(t)); }).then(run);
     });
   }).catch(fail);
 })();

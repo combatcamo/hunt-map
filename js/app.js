@@ -107,7 +107,25 @@
             '<div class="popup-note">USFS MVUM snapshot. Check the current MVUM and posted signs.</div>');
         } }); } }
   };
-  // ----- parcels: never bundled; downloaded on the phone (Offline maps) or queried live -----
+  function installScoutOverlays() {
+    if (!window.Layers) return;
+    Layers.SCOUT_OVERLAYS.forEach(function (spec) {
+      OVERLAYS[spec.id] = {
+        url: spec.file,
+        label: spec.label,
+        scout: true,
+        make: function (gj) { return Layers.makeOverlay(spec, gj, L); }
+      };
+    });
+    OVERLAYS.top10 = {
+      url: Layers.TOP10_FILE,
+      label: 'Top 10 stands (Scout)',
+      scout: true,
+      make: function (gj) { return Layers.makeOverlay({ id: 'top10', kind: 'point', color: '#ff9f1a', label: 'Top 10' }, Layers.normalizeTop10(gj), L); }
+    };
+  }
+
+    // ----- parcels: never bundled; downloaded on the phone (Offline maps) or queried live -----
   function makeParcelLayer(gj) {
     return L.geoJSON(gj, { renderer: S.canvas, style: { color: '#ff40ff', weight: 1.4, opacity: 0.9, fillOpacity: 0.02 },
       onEachFeature: function (f, layer) {
@@ -614,6 +632,16 @@
     });
   }
 
+  function scoutToggles() {
+    if (!window.Layers) return '';
+    var keys = Layers.SCOUT_OVERLAYS.map(function (s) { return s.id; }).concat(['top10']);
+    return '<h3>Scout layers</h3>' + keys.map(function (k) {
+      var def = OVERLAYS[k]; if (!def) return '';
+      var st = S.overlayState[k] === 'missing' ? ' <span class="warn">(waiting)</span>' : '';
+      return '<label class="toggle"><span>' + def.label + st + '</span><input type="checkbox" data-ov="' + k + '"' + (S.settings[k] ? ' checked' : '') + '></label>';
+    }).join('');
+  }
+
   // ---------- More menu ----------
   function moreSheet() {
     var ov = function (k, label) {
@@ -625,7 +653,8 @@
       '<div class="col"><button class="primary" id="m-offline">Offline maps (download / clear)</button>' +
       '<div class="row"><button id="m-night">' + (S.settings.night ? 'Dark mode' : 'Red night mode') + '</button><button id="m-compass"' + (S.compassOn ? ' disabled' : '') + '>' + compassTxt + '</button></div>' +
       '<button id="m-goto">Navigate to a pin…</button></div>' +
-      '<h3>Layers</h3>' + ov('boundary', 'WMA boundary' + (S.overlayState.boundary === 'missing' ? '' : '')) + ov('parcels', 'Parcel lines (tax map, approximate)') + ov('mvum', 'USFS roads/trails (MVUM)') +
+      '<h3>Layers</h3>' + ov('boundary', 'WMA boundary') + ov('parcels', 'Parcel lines (tax map, approximate)') + ov('mvum', 'USFS roads/trails (MVUM)') +
+      scoutToggles() +
       '<h3>Pins (' + S.pins.length + ')</h3><div id="m-pins"></div>' +
       '<h3>Routes (' + S.routes.length + ')</h3><div id="m-routes"></div>' +
       '<h3>Import / export</h3><div class="col">' +
@@ -710,7 +739,8 @@
     // boundary data is always loaded (offline download area uses it); shown only if toggled on
     var wantBoundary = S.settings.boundary !== false;
     setOverlay('boundary', true).then(function () { if (!wantBoundary) setOverlay('boundary', false); });
-    ['parcels', 'mvum'].forEach(function (k) { if (S.settings[k]) setOverlay(k, true); });
+    installScoutOverlays();
+    ['parcels', 'mvum'].concat(window.Layers ? Layers.SCOUT_OVERLAYS.map(function (s) { return s.id; }).concat(['top10']) : []).forEach(function (k) { if (S.settings[k]) setOverlay(k, true); });
     return Promise.all([loadPins(), loadRoutes()]);
   }).then(function () {
     startGPS(); registerSW(); S.ready = true;
