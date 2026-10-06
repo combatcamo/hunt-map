@@ -2,7 +2,7 @@
    - App shell + data: precached, served cache-first, refreshed in the background (stale-while-revalidate).
    - Map tiles (basemap.nationalmap.gov): cache-first from "hm-tiles-v1"; tiles you view online are kept too.
    - ./registry/*: network-first, cached copy when offline. */
-var VERSION = 'v1.3.1';
+var VERSION = 'v1.3.2';
 var SHELL_CACHE = 'hm-shell-' + VERSION;
 var TILE_CACHE = 'hm-tiles-v1';
 var REG_CACHE = 'hm-registry-v1';
@@ -14,7 +14,7 @@ var SHELL = [
   'data/wma-boundary.geojson', 'data/mvum.geojson', 'data/mvum-1.geojson', 'data/mvum-2.geojson', 'data/mvum-3.geojson',
   'data/wma_boundary.geojson', 'data/state_park_exclusion.geojson', 'data/roads_100ft_buffer.geojson',
   'data/roads_centerlines.geojson', 'data/access_parking.geojson', 'data/saddles.geojson', 'data/benches.geojson',
-  'data/likely_bedding.geojson', 'data/pinch_points.geojson', 'data/water.geojson', 'data/water_influence.geojson', 'data/top10_stands.geojson',
+  'data/likely_bedding.geojson', 'data/pinch_points.geojson', 'data/water.geojson', 'data/forecast.json', 'data/water_influence.geojson', 'data/top10_stands.geojson',
   'data/wind_grid.geojson.gz.b64'
 ];
 self.addEventListener('install', function (e) {

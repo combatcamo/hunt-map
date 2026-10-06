@@ -1,0 +1,13 @@
+{
+  "updated": "2026-10-06T17:50:00Z",
+  "source": "NWS grid LZK/32,91 (Blue Mountain, nearest to Mount Magazine WMA)",
+  "note": "Hunt Scout's weekend plan (NE Monday, east Saturday night) is stale. This card is the current NWS read. No stand pin yet, so seats are terrain rules, not a named stand. Stay out of Mount Magazine State Park and private inholdings. Recheck AGFC zone and shooting hours the night before.",
+  "hunts": [
+    {"when": "Tonight, Tue Oct 6, last 90 minutes of light", "wind": "Calm after 5 pm, clear, about 71 falling to the upper 50s", "sit": "High side of a bench. With no wind, thermals dump downhill after sunset, so do not sit in the draw.", "rank": "fair"},
+    {"when": "Wednesday morning, Oct 7", "wind": "Calm, clear, about 57°F at first light", "sit": "High, south or southeast of bedding. A dead-calm morning swirls. Move if the first puff is north.", "rank": "fair"},
+    {"when": "Thursday morning, Oct 8", "wind": "Calm at dawn, east 5 mph by afternoon", "sit": "West side of a bench if the east wind shows up. If it stays calm, stay high and check often.", "rank": "fair"},
+    {"when": "Friday morning, Oct 9", "wind": "East 5 mph, clear, about 61°F", "sit": "West side of benches and the west face of spur ridges. Best defined morning wind so far.", "rank": "good"},
+    {"when": "Saturday morning, Oct 10", "wind": "ESE 5 to 10 mph, mostly clear, about 61°F", "sit": "West and northwest of bedding, west side of spur ridges. Strongest wind of the stretch. Weekend traffic.", "rank": "best"},
+    {"when": "Sunday morning, Oct 11", "wind": "ESE 10 at dawn, turning SE to S by 8", "sit": "Start on the west side. Be ready to slide north if it clocks south. Weekend crowds.", "rank": "good"}
+  ]
+}

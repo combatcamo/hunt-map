@@ -642,6 +642,20 @@
     }).join('');
   }
 
+
+  function forecastSheet() {
+    fetch('data/forecast.json').then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); }).then(function (fc) {
+      var rows = (fc.hunts || []).map(function (h) {
+        return '<p><b>' + esc(h.when) + '</b> <span class="muted">(' + esc(h.rank) + ')</span><br>' + esc(h.wind) + '<br>' + esc(h.sit) + '</p>';
+      }).join('');
+      openSheet('<h2>5-day forecast</h2><p class="muted">' + esc(fc.note) + '</p>' + rows +
+        '<p class="muted">Source: ' + esc(fc.source) + '. Updated ' + esc(fc.updated) + '.</p>' +
+        '<button id="fc-close" style="width:100%">Close</button>', function (el) {
+        el.querySelector('#fc-close').onclick = closeSheet;
+      });
+    }).catch(function () { toast('Forecast not loaded'); });
+  }
+
   // ---------- More menu ----------
   function moreSheet() {
     var ov = function (k, label) {
@@ -661,8 +675,10 @@
       '<button id="m-gpx">Import GPX route</button>' +
       '<div class="row"><button id="m-sync">Sync from registry</button><button id="m-regfiles">Registry files…</button></div>' +
       '<div class="row"><button id="m-export">Export pins</button><button id="m-import">Import pins</button></div></div>' +
+      '<button id="m-forecast" class="primary">5-day hunt forecast</button>' +
       '<h3>About</h3><p class="muted">Mount Magazine WMA, Yell/Logan Co., AR. Maps: USGS The National Map (public domain). Boundary: AGFC. Parcels: Arkansas GIS Office (CAMP), approximate, not legal boundaries. Roads: USFS MVUM. Always confirm boundaries with posted signs and current AGFC regulations.</p>' +
       '<button id="m-close" style="width:100%">Close</button>', function (el) {
+      el.querySelector('#m-forecast').onclick = forecastSheet;
       el.querySelector('#m-offline').onclick = offlineSheet;
       el.querySelector('#m-night').onclick = function () { setNight(!S.settings.night); moreSheet(); };
       el.querySelector('#m-compass').onclick = function () { enableCompass(true).then(function (ok) { toast(ok ? 'Compass on' : 'Compass not available'); moreSheet(); }); };
