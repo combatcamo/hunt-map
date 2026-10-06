@@ -5,7 +5,11 @@
   var TYPES = {
     stand:   { label: 'Stand',   color: '#ff9f1a', glyph: '<path d="M14 10 L14 34 M30 10 L30 34 M14 16 H30 M14 23 H30 M14 30 H30" stroke="#000" stroke-width="3.2" fill="none" stroke-linecap="round"/><path d="M10 10 H34" stroke="#000" stroke-width="4" stroke-linecap="round"/>' },
     blind:   { label: 'Blind',   color: '#3ddc84', glyph: '<path d="M8 33 L22 9 L36 33 Z" fill="#000"/><rect x="18" y="22" width="8" height="5" fill="#3ddc84"/>' },
-    parking: { label: 'Truck',   color: '#2f8cff', glyph: '<path d="M7 27 V18 H24 V27 M24 21 H30 L36 25 V27 H24" stroke="#000" stroke-width="3" fill="none" stroke-linejoin="round"/><circle cx="13" cy="29" r="3.3" fill="#000"/><circle cx="30" cy="29" r="3.3" fill="#000"/>' }
+    parking: { label: 'Truck',   color: '#2f8cff', glyph: '<path d="M7 27 V18 H24 V27 M24 21 H30 L36 25 V27 H24" stroke="#000" stroke-width="3" fill="none" stroke-linejoin="round"/><circle cx="13" cy="29" r="3.3" fill="#000"/><circle cx="30" cy="29" r="3.3" fill="#000"/>' },
+    water:   { label: 'Water',   color: '#29b6f6', glyph: '<path d="M22 8 C22 8 10 20 10 27 a12 12 0 0 0 24 0 C34 20 22 8 22 8Z" fill="#000"/>' },
+    food:    { label: 'Food',    color: '#c6ff00', glyph: '<circle cx="22" cy="22" r="10" fill="#000"/><path d="M22 12 v20 M12 22 h20" stroke="#c6ff00" stroke-width="3"/>' },
+    scrape:  { label: 'Scrape',  color: '#ff8a65', glyph: '<ellipse cx="22" cy="26" rx="12" ry="6" fill="#000"/><path d="M14 18 h16" stroke="#000" stroke-width="3"/>' },
+    rub:     { label: 'Rub',     color: '#ce93d8', glyph: '<path d="M16 34 V14 h6 v20 M26 34 V18 h6 v16" stroke="#000" stroke-width="3" fill="none"/>' }
   };
   var SUBTYPES = ['', 'ladder', 'hang-on', 'ground blind', 'duck blind'];
   var BASE_ORDER = ['topo', 'aerial', 'hybrid'];
@@ -204,6 +208,7 @@
   function onPos(pos) {
     var c = pos.coords;
     S.me = { lat: c.latitude, lon: c.longitude, acc: c.accuracy, course: c.heading, speed: c.speed, t: pos.timestamp };
+    recordCrumb(S.me);
     var ll = [c.latitude, c.longitude];
     if (!S.meMarker) {
       S.meCircle = L.circle(ll, { radius: c.accuracy, color: '#1e90ff', weight: 1, fillOpacity: 0.12, interactive: false }).addTo(S.map);
@@ -312,7 +317,7 @@
     var draft = p ? Object.assign({}, p) : { type: 'stand', name: '', notes: '', subtype: '', best_winds: [], skip_winds: [] };
     var where = 'center';
     var html = '<h2>' + (isNew ? 'Add pin' : 'Edit pin') + '</h2>' +
-      '<div class="row" id="e-types">' + ['stand', 'blind', 'parking'].map(function (k) {
+      '<div class="row" id="e-types">' + ['stand', 'blind', 'parking', 'water', 'food', 'scrape', 'rub'].map(function (k) {
         return '<button class="typebtn' + (draft.type === k ? ' sel' : '') + '" data-type="' + k + '">' + pinSvg(k) + TYPES[k].label + '</button>';
       }).join('') + '</div>' +
       (isNew ? '<h3>Where</h3><div class="row"><button id="e-at-center" class="sel">Crosshair</button><button id="e-at-gps"' + (S.me ? '' : ' disabled') + '>My GPS' + (S.me ? ' ±' + Math.round(S.me.acc / Geo.M_PER_YD) + 'yd' : '') + '</button></div>' +
@@ -656,6 +661,52 @@
     }).catch(function () { toast('Forecast not loaded'); });
   }
 
+
+  function recordCrumb(me) {
+    if (S.settings.crumbs === false) return;
+    if (!window.Trail || !Trail.shouldAccept) return;
+    S.crumbs = S.crumbs || [];
+    var prev = S.crumbs[S.crumbs.length - 1];
+    if (!Trail.shouldAccept(prev, me.lat, me.lon, me.acc, me.t)) return;
+    S.crumbs.push({ lat: me.lat, lon: me.lon, t: me.t, acc: me.acc });
+    S.crumbs = Trail.prune(S.crumbs, Date.now());
+    drawCrumbs();
+    if (window.DB && S.crumbs.length % 8 === 0) DB.setSetting('crumbs', S.crumbs);
+  }
+  function drawCrumbs() {
+    if (!S.map) return;
+    if (S.crumbLine) S.map.removeLayer(S.crumbLine);
+    if (!S.crumbs || S.crumbs.length < 2 || S.settings.crumbs === false) return;
+    S.crumbLine = L.polyline(S.crumbs.map(function (p) { return [p.lat, p.lon]; }), { color: '#ffea00', weight: 3, opacity: 0.85 }).addTo(S.map);
+  }
+  function clearCrumbs() {
+    S.crumbs = [];
+    if (S.crumbLine) { S.map.removeLayer(S.crumbLine); S.crumbLine = null; }
+    if (window.DB) DB.setSetting('crumbs', []);
+    toast('Breadcrumbs cleared');
+  }
+  function refreshWind() {
+    var ll = S.me ? [S.me.lat, S.me.lon] : (S.map ? [S.map.getCenter().lat, S.map.getCenter().lng] : WMA_CENTER);
+    if (!window.NWS || !NWS.windAt) { var el = document.getElementById('st-net'); if (el && !el.textContent) el.textContent = 'Wind: —'; return; }
+    NWS.windAt(ll[0], ll[1]).then(function (w) {
+      S.wind = w;
+      var el = document.getElementById('st-net');
+      if (!el) return;
+      var dir = w.direction || w.windDirection || '';
+      var spd = w.speedMph != null ? w.speedMph : (w.speed || '');
+      el.textContent = 'Wind ' + dir + ' ' + spd + (String(spd).indexOf('mph') >= 0 ? '' : ' mph');
+    }).catch(function () {});
+  }
+  function movementSheet() {
+    var w = S.wind || {};
+    var dir = w.direction || w.windDirection || 'unknown';
+    openSheet('<h2>Deer movement</h2>' +
+      '<p>Wind right now: <b>' + esc(dir) + '</b>. Sit on the downwind side of the trail you are watching, and approach from downwind. This is a planning aid, not a solunar promise.</p>' +
+      '<p>Early pre-rut: watch the downwind side of fresh rubs and scrapes between oak flats and bedding. Confirm sign yourself. Do not hang a stand on a guessed pin.</p>' +
+      '<p class="muted">Top 10 stands are not on the map. Q asked for them, but no field pins were saved, and I will not invent ten spots. Drop Water, Food, Scrape, and Rub pins as you find them. Delete is on every pin.</p>' +
+      '<button id="mv-close" style="width:100%">Close</button>', function (el) { el.querySelector('#mv-close').onclick = closeSheet; });
+  }
+
   // ---------- More menu ----------
   function moreSheet() {
     var ov = function (k, label) {
@@ -676,9 +727,12 @@
       '<div class="row"><button id="m-sync">Sync from registry</button><button id="m-regfiles">Registry files…</button></div>' +
       '<div class="row"><button id="m-export">Export pins</button><button id="m-import">Import pins</button></div></div>' +
       '<button id="m-forecast" class="primary">5-day hunt forecast</button>' +
+      '<div class="row"><button id="m-move">Deer movement</button><button id="m-clear-crumbs">Clear breadcrumbs</button></div>' +
       '<h3>About</h3><p class="muted">Mount Magazine WMA, Yell/Logan Co., AR. Maps: USGS The National Map (public domain). Boundary: AGFC. Parcels: Arkansas GIS Office (CAMP), approximate, not legal boundaries. Roads: USFS MVUM. Always confirm boundaries with posted signs and current AGFC regulations.</p>' +
       '<button id="m-close" style="width:100%">Close</button>', function (el) {
       el.querySelector('#m-forecast').onclick = forecastSheet;
+      el.querySelector('#m-move').onclick = movementSheet;
+      el.querySelector('#m-clear-crumbs').onclick = function () { clearCrumbs(); moreSheet(); };
       el.querySelector('#m-offline').onclick = offlineSheet;
       el.querySelector('#m-night').onclick = function () { setNight(!S.settings.night); moreSheet(); };
       el.querySelector('#m-compass').onclick = function () { enableCompass(true).then(function (ok) { toast(ok ? 'Compass on' : 'Compass not available'); moreSheet(); }); };
@@ -757,7 +811,8 @@
     setOverlay('boundary', true).then(function () { if (!wantBoundary) setOverlay('boundary', false); });
     installScoutOverlays();
     ['parcels', 'mvum'].concat(window.Layers ? Layers.SCOUT_OVERLAYS.map(function (s) { return s.id; }).concat(['top10']) : []).forEach(function (k) { if (S.settings[k]) setOverlay(k, true); });
-    return Promise.all([loadPins(), loadRoutes()]);
+    refreshWind(); setInterval(refreshWind, 15 * 60 * 1000);
+    return Promise.all([loadPins(), loadRoutes(), DB.getSetting('crumbs', []).then(function (c) { S.crumbs = c || []; drawCrumbs(); })]);
   }).then(function () {
     startGPS(); registerSW(); S.ready = true;
   }).catch(function (e) { console.error(e); toast('Startup error: ' + e.message, 6000); });
