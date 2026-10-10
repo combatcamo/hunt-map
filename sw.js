@@ -2,7 +2,7 @@
    - App shell + data: precached, served cache-first, refreshed in the background (stale-while-revalidate).
    - Map tiles (basemap.nationalmap.gov): cache-first from "hm-tiles-v1"; tiles you view online are kept too.
    - ./registry/*: network-first, cached copy when offline. */
-var VERSION = 'v1.4.0';
+var VERSION = 'v1.4.1';
 var SHELL_CACHE = 'hm-shell-' + VERSION;
 var TILE_CACHE = 'hm-tiles-v1';
 var REG_CACHE = 'hm-registry-v1';

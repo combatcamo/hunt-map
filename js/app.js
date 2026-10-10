@@ -692,8 +692,10 @@
       S.wind = w || {};
       var el = document.getElementById('st-net');
       if (!el) return;
-      var dir = w.compass || w.direction || w.windDirection || '';
-      var spd = w.mph != null ? w.mph : (w.speedMph != null ? w.speedMph : (w.speed || ''));
+      var deg = w.direction_deg_from;
+      var dir = w.compass || w.direction || w.windDirection ||
+        (isFinite(deg) && deg !== null ? ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'][Math.round(((+deg % 360) + 360) % 360 / 22.5) % 16] : '');
+      var spd = w.mph != null ? w.mph : (w.speedMph != null ? w.speedMph : (w.speed_mph != null ? Math.round(w.speed_mph) : (w.speed || '')));
       el.textContent = dir ? ('Wind ' + dir + (spd === '' ? '' : ' ' + spd) + (String(spd).indexOf('mph') >= 0 || spd === '' ? '' : ' mph')) : 'Wind —';
     }).catch(function () {});
   }
