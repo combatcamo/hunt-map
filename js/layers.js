@@ -27,6 +27,30 @@
   var WIND_GRID_FILE = 'data/wind_grid.geojson.gz.b64'; // optional arrow field (stale-ok). Live wind = NWS (js/nws.js).
   var WIND_GRID_TTL_MS = 15 * 60 * 1000; // refresh / cache ≥15 min
   var WIND_CACHE = 'hm-windgrid-v1';
+  var WIND_GRID_STALE_MS = 2 * 60 * 60 * 1000; // grid older than 2 h = stale: hidden, NWS is the live source
+
+  /** Newest timestamp in a wind grid (collection/feature `updated`, else first hours[].valid_time). ms or NaN. */
+  function windGridTime(gj) {
+    if (!gj) return NaN;
+    var best = NaN;
+    function see(v) { var t = Date.parse(String(v || '').split('/')[0]); if (isFinite(t) && !(t <= best)) best = t; }
+    see(gj.updated); see(gj.generated);
+    (gj.features || []).forEach(function (f) {
+      var p = f.properties || {};
+      if (p.updated) see(p.updated);
+      else if (p.hours && p.hours[0]) see(p.hours[0].valid_time);
+    });
+    return best;
+  }
+  /** True when the grid has no usable timestamp or is more than 2 h old. */
+  function isWindGridStale(gj, now) {
+    var t = windGridTime(gj);
+    return !isFinite(t) || ((now || Date.now()) - t) > WIND_GRID_STALE_MS;
+  }
+  function markStale(gj) {
+    if (gj) { gj.stale = isWindGridStale(gj); gj.label = gj.stale ? 'Wind grid (stale, use NWS wind)' : 'Wind grid'; }
+    return gj;
+  }
 
   function fetchGj(url) {
     return fetch(url, { cache: 'no-store' }).then(function (r) {
@@ -165,18 +189,19 @@
     });
   }
   function loadWindGrid(force) {
-    if (force || typeof caches === 'undefined') return fetchWindGridNet();
+    if (force || typeof caches === 'undefined') return fetchWindGridNet().then(markStale);
     return caches.open(WIND_CACHE).then(function (c) { return c.match(windGridKey()); }).then(function (r) {
       if (!r) return fetchWindGridNet();
       var age = Date.now() - Date.parse(r.headers.get('X-Cached') || 0);
       if (age > WIND_GRID_TTL_MS) return fetchWindGridNet();
       return r.json();
-    }).catch(fetchWindGridNet);
+    }).catch(fetchWindGridNet).then(markStale);
   }
 
   /** Nearest wind_grid point to lat/lon; returns feature properties (with hours[]) or null. */
   function nearestWind(gj, lat, lon) {
     if (!gj || !gj.features || !gj.features.length) return null;
+    if (isWindGridStale(gj)) return null; // stale grid is never shown as current wind
     var best = null, bestD = Infinity;
     gj.features.forEach(function (f) {
       var c = f.geometry && f.geometry.coordinates; if (!c) return;
@@ -199,7 +224,8 @@
   }
 
   var api = { SCOUT_OVERLAYS: SCOUT_OVERLAYS, TOP10_FILE: TOP10_FILE, WIND_GRID_FILE: WIND_GRID_FILE,
-    WIND_GRID_TTL_MS: WIND_GRID_TTL_MS, probe: probe, fetchGj: fetchGj, makeOverlay: makeOverlay,
+    WIND_GRID_TTL_MS: WIND_GRID_TTL_MS, WIND_GRID_STALE_MS: WIND_GRID_STALE_MS,
+    windGridTime: windGridTime, isWindGridStale: isWindGridStale, probe: probe, fetchGj: fetchGj, makeOverlay: makeOverlay,
     normalizeTop10: normalizeTop10, loadTop10: loadTop10, loadWindGrid: loadWindGrid, nearestWind: nearestWind,
     loadMvum: loadMvum, popupHtml: popupHtml, styleFor: styleFor };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.Layers = api;
