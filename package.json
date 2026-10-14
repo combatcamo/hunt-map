@@ -1,0 +1,6 @@
+{
+  "name": "hunt-map",
+  "private": true,
+  "scripts": { "test": "node --test tests/*.test.cjs" },
+  "devDependencies": { "leaflet": "1.9.4", "playwright-core": "^1.56.0" }
+}

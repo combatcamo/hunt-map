@@ -650,10 +650,14 @@
 
   function forecastSheet() {
     fetch('data/forecast.json').then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); }).then(function (fc) {
-      var rows = (fc.hunts || []).map(function (h) {
+      // A committed snapshot must never masquerade as live weather, including offline.
+      var updated = Date.parse(fc.updated), now = Date.now();
+      var expired = !isFinite(updated) || updated > now || now - updated >= 24 * 60 * 60 * 1000;
+      var rows = expired ? '<p class="caution">Forecast expired or unavailable. Hunt recommendations are hidden. Check a current NWS forecast before planning your hunt.</p>' :
+        '<p class="muted">Forecast snapshot, valid for up to 24 hours after its update.</p><p class="muted">' + esc(fc.note) + '</p>' + (fc.hunts || []).map(function (h) {
         return '<p><b>' + esc(h.when) + '</b> <span class="muted">(' + esc(h.rank) + ')</span><br>' + esc(h.wind) + '<br>' + esc(h.sit) + '</p>';
       }).join('');
-      openSheet('<h2>5-day forecast</h2><p class="muted">' + esc(fc.note) + '</p>' + rows +
+      openSheet('<h2>Hunt forecast</h2>' + rows +
         '<p class="muted">Source: ' + esc(fc.source) + '. Updated ' + esc(fc.updated) + '.</p>' +
         '<button id="fc-close" style="width:100%">Close</button>', function (el) {
         el.querySelector('#fc-close').onclick = closeSheet;
@@ -671,7 +675,7 @@
     S.crumbs.push({ lat: me.lat, lon: me.lon, t: me.t, acc: me.acc });
     S.crumbs = Trail.prune(S.crumbs, Date.now());
     drawCrumbs();
-    if (window.DB && S.crumbs.length % 8 === 0) DB.setSetting('crumbs', S.crumbs);
+    if (window.DB) DB.setSetting('crumbs', S.crumbs).catch(function () { toast('Breadcrumbs could not be saved', 5000); });
   }
   function drawCrumbs() {
     if (!S.map) return;
@@ -692,16 +696,19 @@
       S.wind = w || {};
       var el = document.getElementById('st-net');
       if (!el) return;
-      var deg = w.direction_deg_from;
-      var dir = w.compass || w.direction || w.windDirection ||
-        (isFinite(deg) && deg !== null ? ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'][Math.round(((+deg % 360) + 360) % 360 / 22.5) % 16] : '');
+      var dir = windDirection(w);
       var spd = w.mph != null ? w.mph : (w.speedMph != null ? w.speedMph : (w.speed_mph != null ? Math.round(w.speed_mph) : (w.speed || '')));
       el.textContent = dir ? ('Wind ' + dir + (spd === '' ? '' : ' ' + spd) + (String(spd).indexOf('mph') >= 0 || spd === '' ? '' : ' mph')) : 'Wind —';
     }).catch(function () {});
   }
+  function windDirection(w) {
+    var deg = w.direction_deg_from;
+    return w.compass || w.direction || w.windDirection ||
+      (deg != null && deg !== '' && isFinite(deg) ? ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'][Math.round(((+deg % 360) + 360) % 360 / 22.5) % 16] : '');
+  }
   function movementSheet() {
     var w = S.wind || {};
-    var dir = w.direction || w.windDirection || 'unknown';
+    var dir = windDirection(w) || 'unknown';
     openSheet('<h2>Deer movement</h2>' +
       '<p>Wind right now: <b>' + esc(dir) + '</b>. Sit on the downwind side of the trail you are watching, and approach from downwind. This is a planning aid, not a solunar promise.</p>' +
       '<p>Early pre-rut: watch the downwind side of fresh rubs and scrapes between oak flats and bedding. Confirm sign yourself. Do not hang a stand on a guessed pin.</p>' +
@@ -814,7 +821,11 @@
     installScoutOverlays();
     ['parcels', 'mvum'].concat(window.Layers ? Layers.SCOUT_OVERLAYS.map(function (s) { return s.id; }).concat(['top10']) : []).forEach(function (k) { if (S.settings[k]) setOverlay(k, true); });
     refreshWind(); setInterval(refreshWind, 15 * 60 * 1000);
-    return Promise.all([loadPins(), loadRoutes(), DB.getSetting('crumbs', []).then(function (c) { S.crumbs = c || []; drawCrumbs(); })]);
+    return Promise.all([loadPins(), loadRoutes(), DB.getSetting('crumbs', []).then(function (c) {
+      S.crumbs = window.Trail ? Trail.prune(c || [], Date.now()) : [];
+      drawCrumbs();
+      return DB.setSetting('crumbs', S.crumbs);
+    })]);
   }).then(function () {
     startGPS(); registerSW(); S.ready = true;
   }).catch(function (e) { console.error(e); toast('Startup error: ' + e.message, 6000); });

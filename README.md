@@ -34,10 +34,18 @@ cd /tmp/hm-www && python3 -m http.server 8793 --bind 127.0.0.1   # open http://1
 
 Tests:
 ```bash
-node --test tests/                    # unit tests: haversine, bearing, compass, tile math, registry normalizer and dedupe
-npm install                           # once (playwright-core only); uses the system Chrome (/usr/bin/google-chrome)
-node tests/e2e.mjs                    # headless-Chrome end-to-end at http://127.0.0.1:8793/hunt-map/ (subpath server above)
+npm install
+npm test
 ```
+The browser regression suite starts its own local server and uses an installed Chrome, Chromium, or Edge.
+Set `CHROME_PATH` to the browser executable if it is not in a standard location. Tests use the same Leaflet
+1.9.4 version as deployment and controlled weather responses; no live weather service is required.
+Coverage includes the boundary warning, mobile pin selector, forecast expiration, breadcrumb persistence
+and retention, and wind direction display. Mobile screenshots are written to `tests/output/`.
+
+The hunt forecast is a saved snapshot in `data/forecast.json`, not a rolling forecast. The app hides its
+advice when the update timestamp is missing, invalid, in the future, or at least 24 hours old, including offline.
+Refresh the snapshot and its timestamp together to publish new advice.
 
 ## Install on your phone
 The app must be served over **HTTPS** (any host below) for install, GPS, and offline to work.
