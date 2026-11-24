@@ -138,3 +138,21 @@ body.night::after { content: ""; position: fixed; inset: 0; z-index: 99999; poin
 .layer-waiting { opacity: .55; }
 .wind-box { background: #0a0a0a; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin: 8px 0; }
 .wind-box .big { font-size: 22px; font-weight: 800; color: var(--accent); }
+
+/* Pin pickers and Scout stand badges (wind fit + saved-on-phone) */
+.pick-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); gap: 8px; margin: 6px 0 10px; }
+.pick-grid button { min-height: 56px; padding: 8px 10px; font-size: 15px; text-transform: capitalize; }
+.saved-on-phone { color: #8CFFC0; font-weight: 800; margin: 8px 0; }
+.legal-note, .caution { color: #FFE14D; font-weight: 800; }
+.top10-badge.fit-good { background: #5CFF9A; color: #000; }
+.top10-badge.fit-fair { background: #FFE14D; color: #000; }
+.top10-badge.fit-poor { background: #FF9A90; color: #000; }
+.top10-badge.fit-unknown { background: #ff9f1a; color: #000; }
+.fit-tag { display: inline-block; margin-left: 4px; padding: 1px 6px; border-radius: 8px; font-size: 11px; font-weight: 800; color: #000; background: #ff9f1a; }
+.fit-tag.fit-good { background: #5CFF9A; }
+.fit-tag.fit-fair { background: #FFE14D; }
+.fit-tag.fit-poor { background: #FF9A90; }
+.fit-tag.fit-unknown { background: #D0D0D0; color: #000; }
+.rank-chg { display: block; text-align: center; font-size: 11px; font-weight: 800; color: #FFE14D; }
+.sign-hot { display: block; text-align: center; font-size: 11px; font-weight: 800; color: #FFE14D; }
+#status span, #st-gps, #st-net { color: #f2f2f2; }
