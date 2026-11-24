@@ -124,9 +124,160 @@
     OVERLAYS.top10 = {
       url: Layers.TOP10_FILE,
       label: 'Top 10 stands (Scout)',
-      scout: true,
-      make: function (gj) { return Layers.makeOverlay({ id: 'top10', kind: 'point', color: '#ff9f1a', label: 'Top 10' }, Layers.normalizeTop10(gj), L); }
+      scout: true
     };
+    OVERLAYS.wind_grid = {
+      url: Layers.WIND_GRID_FILE,
+      label: 'Wind grid (backup)',
+      scout: true
+    };
+  }
+  function mineralNoteHtml(pOrText) {
+    var text = (pOrText && typeof pOrText === 'object')
+      ? [pOrText.food_type, pOrText.notes, pOrText.crop, pOrText.name].join(' ')
+      : pOrText;
+    if (window.PinsExport ? PinsExport.isMineralOrBait(typeof pOrText === 'object' ? pOrText : { notes: text }) : /mineral|bait|salt\s*lick|attractant/i.test(String(text || ''))) {
+      var note = (window.PinsExport && PinsExport.LEGAL_NOTE) || 'Mineral or bait may be illegal on WMA land.';
+      return '<p class="caution legal-note">' + note + '</p>';
+    }
+    return '';
+  }
+  function savedOnPhoneHtml() {
+    return '<p class="saved-on-phone" role="status">Saved on this phone</p>';
+  }
+  function top10Icon(s) {
+    var fit = (s.windFit && s.windFit.fit) || 'unknown';
+    var cls = 'top10-badge fit-' + fit + (s.unverified ? ' warn' : '') + (s.sign_hot ? ' hot' : '');
+    var chg = Layers.formatRankChange ? Layers.formatRankChange(s.rank_change) : '';
+    var chgHtml = chg ? '<span class="rank-chg" title="Rank change">' + chg + '</span>' : '';
+    var flame = s.sign_hot ? '<span class="sign-hot" title="Sign hot">!</span>' : '';
+    var word = { good: 'Good', fair: 'OK', poor: 'Poor', unknown: '—' }[fit] || '—';
+    var html = '<div class="' + cls + '" title="' + (s.windFit && s.windFit.label || 'Wind') + '">' + s.rank + '</div>' +
+      '<span class="fit-tag fit-' + fit + '">' + word + '</span>' + flame + chgHtml;
+    return L.divIcon({ className: 'top10-ico', html: html, iconSize: [44, 44], iconAnchor: [18, 22] });
+  }
+  function standGridHour(s) {
+    if (!S.windGrid || !window.Layers) return null;
+    var n = Layers.nearestWind(S.windGrid, s.lat, s.lon);
+    return n && n.hours && n.hours[0] ? n.hours[0] : n;
+  }
+  function applyStandWindFits() {
+    if (!S.top10 || !S.top10.length) return;
+    var stale = S.windGrid ? Layers.isWindGridStale(S.windGrid) : false;
+    S.windGridStale = stale;
+    S.top10.forEach(function (s) {
+      s.windFit = Layers.windFit(s, S.wind, standGridHour(s), stale);
+    });
+    if (S.overlays.top10 && S.settings.top10) setTop10(true);
+  }
+  function setTop10(on) {
+    S.settings.top10 = on; saveSettings();
+    if (S.overlays.top10) { S.map.removeLayer(S.overlays.top10); S.overlays.top10 = null; }
+    if (!on) return Promise.resolve();
+    S.overlayState.top10 = 'loading';
+    var ready = S.top10 && S.top10.length ? Promise.resolve(S.top10) : Layers.loadTop10();
+    return ready.then(function (stands) {
+      if (!stands.length) { S.overlayState.top10 = 'missing'; return; }
+      S.top10 = stands;
+      var stale = S.windGrid ? Layers.isWindGridStale(S.windGrid) : false;
+      stands.forEach(function (s) { s.windFit = Layers.windFit(s, S.wind, standGridHour(s), stale); });
+      var g = L.layerGroup();
+      stands.forEach(function (s) {
+        var m = L.marker([s.lat, s.lon], { icon: top10Icon(s), zIndexOffset: 600, title: s.name });
+        m.bindPopup(top10Popup(s));
+        m.on('popupopen', function () {
+          var b = document.querySelector('[data-top10-nav="' + s.id + '"]');
+          if (b) b.onclick = function () { S.map.closePopup(); startNavTop10(s); };
+          fillStandWindBox(document.getElementById('top10-wind-' + s.id), s);
+        });
+        m.addTo(g);
+      });
+      S.overlays.top10 = g; S.overlayState.top10 = 'loaded';
+      if (S.settings.top10) g.addTo(S.map);
+    }).catch(function () { S.overlayState.top10 = 'missing'; });
+  }
+  function top10Popup(s) {
+    var caution = s.unverified ? '<div class="caution">Boundary check: unverified</div>' : '';
+    var chg = Layers.formatRankChange(s.rank_change);
+    var fit = s.windFit || {};
+    var bonus = [];
+    if (s.water_bonus) bonus.push('water +' + s.water_bonus);
+    if (s.food_bonus) bonus.push('food +' + s.food_bonus);
+    if (s.sign_bonus) bonus.push('sign +' + s.sign_bonus);
+    var near = [];
+    var nw = Layers.formatNear(s.near_water), nf = Layers.formatNear(s.near_food), ns = Layers.formatNear(s.near_sign);
+    if (nw) near.push('water: ' + nw);
+    if (nf) near.push('food: ' + nf);
+    if (ns) near.push('sign: ' + ns);
+    return '<b>#' + s.rank + (chg ? ' ' + chg : '') + ' ' + esc(s.name) + '</b>' +
+      (s.sign_hot ? ' <span class="sign-hot">sign hot</span>' : '') + caution +
+      (s.rank_score != null ? '<br>Score ' + esc(s.rank_score) : '') +
+      (bonus.length ? '<br>Bonuses: ' + esc(bonus.join(', ')) : '') +
+      (near.length ? '<br>Near ' + esc(near.join(' · ')) : '') +
+      (s.feature_type ? '<br>' + esc(s.feature_type) : '') +
+      (s.elevation_ft != null ? '<br>' + esc(s.elevation_ft) + ' ft' : '') +
+      (s.why ? '<br>' + esc(s.why) : '') +
+      (s.best_winds.length ? '<br><span class="winds-best">Best: ' + esc(s.best_winds.join(', ')) + '</span>' : '') +
+      (s.skip_winds.length ? '<br><span class="winds-skip">Skip: ' + esc(s.skip_winds.join(', ')) + '</span>' : '') +
+      (s.best_time ? '<br>' + esc(s.best_time) : '') +
+      (s.access_note ? '<br>' + esc(s.access_note) : '') +
+      '<div id="top10-wind-' + esc(s.id) + '" class="wind-box"><span class="fit-tag fit-' + esc(fit.fit || 'unknown') + '">' +
+      esc(fit.label || 'Wind') + '</span>' +
+      (fit.source ? ' <span class="muted">(' + (fit.source === 'nws' ? 'live NWS' : 'wind grid') + ')</span>' : '') +
+      '</div>' +
+      '<button class="small" data-top10-nav="' + esc(s.id) + '">Navigate</button>';
+  }
+  function fillStandWindBox(el, s) {
+    if (!el || !window.NWS || !NWS.standWind) return;
+    NWS.standWind(s.lat, s.lon).then(function (w) {
+      var stale = S.windGrid ? Layers.isWindGridStale(S.windGrid) : false;
+      var fit = Layers.windFit(s, w, standGridHour(s), stale);
+      s.windFit = fit;
+      var spd = w.speed_text || (w.speed_mph != null ? w.speed_mph + ' mph' : '');
+      el.innerHTML = '<div class="muted">Live NWS wind</div><div class="big">' + esc(fit.compass || '—') + ' ' + esc(spd) + '</div>' +
+        '<span class="fit-tag fit-' + esc(fit.fit) + '">' + esc(fit.label) + '</span>' +
+        (w.shortForecast ? '<div class="muted">' + esc(w.shortForecast) + '</div>' : '');
+    }).catch(function () {});
+  }
+  function startNavTop10(s) {
+    startNav('top10:' + s.id, { id: 'top10:' + s.id, name: s.name, type: 'stand', lat: s.lat, lon: s.lon });
+  }
+  function setWindGrid(on) {
+    S.settings.wind_grid = on; saveSettings();
+    if (S.overlays.wind_grid) { S.map.removeLayer(S.overlays.wind_grid); S.overlays.wind_grid = null; }
+    if (!on) return Promise.resolve();
+    S.overlayState.wind_grid = 'loading';
+    var ready = S.windGrid ? Promise.resolve(S.windGrid) : Layers.loadWindGrid();
+    return ready.then(function (gj) {
+      if (!gj || !gj.features) { S.overlayState.wind_grid = 'missing'; return; }
+      S.windGrid = gj;
+      S.windGridStale = Layers.isWindGridStale(gj);
+      var label = gj.label || (S.windGridStale ? 'Wind grid (stale)' : 'Wind grid');
+      OVERLAYS.wind_grid.label = label;
+      S.overlays.wind_grid = L.geoJSON(gj, {
+        pointToLayer: function (f, ll) {
+          return L.circleMarker(ll, { radius: 4, color: '#90caf9', weight: 1, fillColor: '#90caf9', fillOpacity: 0.65 });
+        },
+        onEachFeature: function (f, layer) {
+          var p = f.properties || {}, h0 = (p.hours || [])[0] || {};
+          layer.bindPopup('<b>' + esc(label) + '</b><br>' +
+            (h0.direction_deg_from != null ? h0.direction_deg_from + '° from' : '—') +
+            (h0.speed_mph != null ? ' · ' + h0.speed_mph + ' mph' : '') +
+            (S.windGridStale ? '<div class="caution">Grid is more than 2 hours old. Use live NWS wind.</div>' : ''));
+        }
+      });
+      S.overlayState.wind_grid = 'loaded';
+      if (S.settings.wind_grid) S.overlays.wind_grid.addTo(S.map);
+    }).catch(function () { S.overlayState.wind_grid = 'missing'; });
+  }
+  function loadBackupWind() {
+    if (!window.Layers || !Layers.loadWindGrid) return Promise.resolve();
+    return Layers.loadWindGrid().then(function (gj) {
+      S.windGrid = gj;
+      S.windGridStale = !!(gj && Layers.isWindGridStale(gj));
+      applyStandWindFits();
+      updateWindChip();
+    }).catch(function () {});
   }
 
     // ----- parcels: never bundled; downloaded on the phone (Offline maps) or queried live -----
@@ -182,6 +333,8 @@
   }
   function setOverlay(key, on) {
     if (key === 'parcels') return setParcels(on);
+    if (key === 'top10') return setTop10(on);
+    if (key === 'wind_grid') return setWindGrid(on);
     S.settings[key] = on; saveSettings();
     var def = OVERLAYS[key];
     if (!on) { if (S.overlays[key]) S.map.removeLayer(S.overlays[key]); return Promise.resolve(); }
@@ -295,7 +448,25 @@
     var extra = '';
     var X = p.extra || {}, names = { access: 'Access', land_access: 'Land', last_hunted: 'Last hunted', last_sighting: 'Last sighting' };
     Object.keys(names).forEach(function (k) { if (X[k]) extra += '<dt>' + names[k] + '</dt><dd>' + esc(X[k]) + '</dd>'; });
+    if (p.type === 'water') {
+      extra += '<dt>Water type</dt><dd>' + esc((p.water_type || 'other').replace(/_/g, ' ')) + '</dd>';
+      extra += '<dt>Reliability</dt><dd>' + esc((p.reliability || 'unknown').replace(/_/g, ' ')) + '</dd>';
+    }
+    if (p.type === 'food') {
+      extra += '<dt>Food type</dt><dd>' + esc((p.food_type || 'other').replace(/_/g, ' ')) + '</dd>';
+      if (p.crop) extra += '<dt>Crop</dt><dd>' + esc(p.crop) + '</dd>';
+      extra += '<dt>Status</dt><dd>' + esc((p.status || 'unknown').replace(/_/g, ' ')) + '</dd>';
+    }
+    if (p.type === 'scrape' || p.type === 'rub') {
+      if (p.sign_date) extra += '<dt>Seen</dt><dd>' + esc(p.sign_date) + '</dd>';
+      if (p.freshness) extra += '<dt>Freshness</dt><dd>' + esc(p.freshness) + '</dd>';
+      if (p.size) extra += '<dt>Size</dt><dd>' + esc(p.size) + '</dd>';
+      if (p.licking_branch) extra += '<dt>Licking branch</dt><dd>Yes</dd>';
+      if (p.count) extra += '<dt>Count</dt><dd>' + esc(p.count) + '</dd>';
+    }
     openSheet('<h2 style="display:flex;gap:10px;align-items:center"><span style="width:40px;height:40px;display:inline-block">' + pinSvg(p.type) + '</span>' + esc(p.name) + '</h2>' +
+      savedOnPhoneHtml() +
+      mineralNoteHtml(p) +
       '<dl class="kv"><dt>Type</dt><dd>' + esc(t.label) + (p.subtype ? ' · ' + esc(p.subtype) : '') + '</dd>' + windsHtml(p) +
       (p.notes ? '<dt>Notes</dt><dd>' + esc(p.notes) + '</dd>' : '') + rel + extra +
       '<dt>Lat, lon</dt><dd>' + p.lat.toFixed(5) + ', ' + p.lon.toFixed(5) + '</dd></dl>' +
@@ -311,32 +482,104 @@
     });
   }
   /** Add (p = null) or edit a pin. */
+  function pickButtons(id, items, selected, labelFn) {
+    return '<div class="pick-grid" id="' + id + '">' + items.map(function (s) {
+      var lab = labelFn ? labelFn(s) : String(s).replace(/_/g, ' ');
+      return '<button type="button" class="' + (String(selected) === String(s) ? 'sel' : '') + '" data-val="' + s + '">' + lab + '</button>';
+    }).join('') + '</div>';
+  }
+  function bindPicks(el, sel, draft, key) {
+    el.querySelectorAll(sel + ' button').forEach(function (b) {
+      b.onclick = function () {
+        draft[key] = b.dataset.val === 'true' ? true : (b.dataset.val === 'false' ? false : b.dataset.val);
+        el.querySelectorAll(sel + ' button').forEach(function (x) { x.classList.toggle('sel', x === b); });
+      };
+    });
+  }
   function editPin(p) {
     var isNew = !p;
     var center = S.map.getCenter();
-    var draft = p ? Object.assign({}, p) : { type: 'stand', name: '', notes: '', subtype: '', best_winds: [], skip_winds: [] };
+    var PX = window.PinsExport || {};
+    var draft = p ? Object.assign({}, p) : {
+      type: 'stand', name: '', notes: '', subtype: '',
+      food_type: 'other', crop: '', status: 'unknown',
+      water_type: 'other', reliability: 'unknown',
+      sign_date: '', freshness: 'unknown', size: 'unknown', licking_branch: false, count: '',
+      best_winds: [], skip_winds: []
+    };
     var where = 'center';
     var html = '<h2>' + (isNew ? 'Add pin' : 'Edit pin') + '</h2>' +
+      (isNew ? '' : savedOnPhoneHtml()) +
       '<div class="row" id="e-types">' + ['stand', 'blind', 'parking', 'water', 'food', 'scrape', 'rub'].map(function (k) {
         return '<button class="typebtn' + (draft.type === k ? ' sel' : '') + '" data-type="' + k + '">' + pinSvg(k) + TYPES[k].label + '</button>';
       }).join('') + '</div>' +
       (isNew ? '<h3>Where</h3><div class="row"><button id="e-at-center" class="sel">Crosshair</button><button id="e-at-gps"' + (S.me ? '' : ' disabled') + '>My GPS' + (S.me ? ' ±' + Math.round(S.me.acc / Geo.M_PER_YD) + 'yd' : '') + '</button></div>' +
         '<p class="muted" id="e-where">' + center.lat.toFixed(5) + ', ' + center.lng.toFixed(5) + '</p>' : '') +
-      '<label class="field" for="e-name">Name</label><input type="text" id="e-name" maxlength="60" placeholder="e.g. Ridge ladder" value="' + esc(draft.name) + '">' +
-      '<div id="e-subwrap"><label class="field" for="e-sub">Kind</label><div class="row" id="e-sub" style="flex-wrap:wrap">' +
-      SUBTYPES.map(function (s) { return '<button class="small' + ((draft.subtype || '') === s ? ' sel' : '') + '" data-sub="' + s + '">' + (s || 'none') + '</button>'; }).join('') + '</div></div>' +
+      '<label class="field" for="e-name">Name (optional)</label><input type="text" id="e-name" maxlength="60" placeholder="e.g. Ridge ladder" value="' + esc(draft.name) + '">' +
+      '<div id="e-subwrap"><label class="field">Kind</label>' +
+      pickButtons('e-sub', SUBTYPES, draft.subtype || '', function (s) { return s || 'none'; }) + '</div>' +
+      '<div id="e-foodwrap" hidden><label class="field">Food type</label>' +
+      pickButtons('e-food-type', PX.FOOD_TYPES || ['food_plot','ag_field','oak_flat','mast_tree','clearcut','browse','orchard','other','hard_mast','soft_mast','persimmon','mineral'], draft.food_type || 'other') +
+      '<label class="field" for="e-crop">Crop (optional)</label><input type="text" id="e-crop" maxlength="80" value="' + esc(draft.crop || '') + '">' +
+      '<label class="field">Status</label>' +
+      pickButtons('e-food-status', PX.FOOD_STATUS || ['planted','growing','mature','grazed_down','unknown'], draft.status || 'unknown') + '</div>' +
+      '<div id="e-waterwrap" hidden><label class="field">Water type</label>' +
+      pickButtons('e-water-type', PX.WATER_TYPES || ['spring','seep','pond','creek_pool','wallow','tank','puddle','other'], draft.water_type || 'other') +
+      '<label class="field">Reliability</label>' +
+      pickButtons('e-water-rel', PX.RELIABILITY || ['year_round','seasonal','after_rain','unknown'], draft.reliability || 'unknown') + '</div>' +
+      '<div id="e-signwrap" hidden><label class="field">When you saw it</label>' +
+      pickButtons('e-sign-when', ['today','yesterday','this_week','older','unknown'], draft.sign_when || 'unknown', function (s) { return ({ today: 'Today', yesterday: 'Yesterday', this_week: 'This week', older: 'Older', unknown: 'Not sure' })[s]; }) +
+      '<label class="field">Freshness</label>' +
+      pickButtons('e-fresh', PX.FRESHNESS || ['fresh','active','old','unknown'], draft.freshness || 'unknown') +
+      '<label class="field">Size</label>' +
+      pickButtons('e-size', PX.SIZES || ['large','medium','small','unknown'], draft.size || 'unknown') +
+      '<label class="field">Licking branch</label>' +
+      pickButtons('e-lick', ['false','true'], draft.licking_branch ? 'true' : 'false', function (s) { return s === 'true' ? 'Yes' : 'No'; }) +
+      '<label class="field">Count</label>' +
+      pickButtons('e-count', ['1','2','3','4','5'], String(draft.count || '1')) + '</div>' +
       '<label class="field" for="e-notes">Notes</label><textarea id="e-notes" maxlength="1000">' + esc(draft.notes) + '</textarea>' +
+      '<div id="e-mineral-note"></div>' +
       '<div id="e-windwrap"><label class="field" for="e-best">Best winds (e.g. N, NW)</label><input type="text" id="e-best" value="' + esc((draft.best_winds || []).join(', ')) + '">' +
       '<label class="field" for="e-skip">Skip winds</label><input type="text" id="e-skip" value="' + esc((draft.skip_winds || []).join(', ')) + '"></div>' +
+      '<p id="e-save-status" class="saved-on-phone" hidden>Saved on this phone</p>' +
       '<div class="row" style="margin-top:14px"><button id="e-cancel">Cancel</button><button class="primary" id="e-save">Save</button></div>';
     openSheet(html, function (el) {
-      function syncType() { el.querySelector('#e-subwrap').hidden = el.querySelector('#e-windwrap').hidden = draft.type === 'parking'; }
+      function syncType() {
+        var standish = draft.type === 'stand' || draft.type === 'blind';
+        el.querySelector('#e-subwrap').hidden = !standish;
+        el.querySelector('#e-windwrap').hidden = !standish;
+        el.querySelector('#e-foodwrap').hidden = draft.type !== 'food';
+        el.querySelector('#e-waterwrap').hidden = draft.type !== 'water';
+        el.querySelector('#e-signwrap').hidden = draft.type !== 'scrape' && draft.type !== 'rub';
+        refreshMineral();
+      }
+      function refreshMineral() {
+        var crop = el.querySelector('#e-crop');
+        el.querySelector('#e-mineral-note').innerHTML = mineralNoteHtml({
+          food_type: draft.food_type, notes: el.querySelector('#e-notes').value,
+          crop: crop ? crop.value : '', name: el.querySelector('#e-name').value, type: draft.type
+        });
+      }
       syncType();
+      el.querySelector('#e-notes').oninput = refreshMineral;
+      el.querySelector('#e-name').oninput = refreshMineral;
+      if (el.querySelector('#e-crop')) el.querySelector('#e-crop').oninput = refreshMineral;
       el.querySelectorAll('#e-types button').forEach(function (b) {
         b.onclick = function () { draft.type = b.dataset.type; el.querySelectorAll('#e-types button').forEach(function (x) { x.classList.toggle('sel', x === b); }); syncType(); };
       });
-      el.querySelectorAll('#e-sub button').forEach(function (b) {
-        b.onclick = function () { draft.subtype = b.dataset.sub; el.querySelectorAll('#e-sub button').forEach(function (x) { x.classList.toggle('sel', x === b); }); };
+      bindPicks(el, '#e-sub', draft, 'subtype');
+      bindPicks(el, '#e-food-type', draft, 'food_type');
+      bindPicks(el, '#e-food-status', draft, 'status');
+      bindPicks(el, '#e-water-type', draft, 'water_type');
+      bindPicks(el, '#e-water-rel', draft, 'reliability');
+      bindPicks(el, '#e-sign-when', draft, 'sign_when');
+      bindPicks(el, '#e-fresh', draft, 'freshness');
+      bindPicks(el, '#e-size', draft, 'size');
+      bindPicks(el, '#e-lick', draft, 'licking_branch');
+      bindPicks(el, '#e-count', draft, 'count');
+      el.querySelectorAll('#e-food-type button').forEach(function (b) {
+        var prev = b.onclick;
+        b.onclick = function () { if (prev) prev(); refreshMineral(); };
       });
       if (isNew) {
         var bc = el.querySelector('#e-at-center'), bg = el.querySelector('#e-at-gps');
@@ -348,30 +591,67 @@
         var name = el.querySelector('#e-name').value.trim();
         if (!name) { var n = S.pins.filter(function (x) { return x.type === draft.type; }).length + 1; name = TYPES[draft.type].label + ' ' + n; }
         var rec = Object.assign({}, draft, { name: name, notes: el.querySelector('#e-notes').value.trim(), updated: today() });
-        if (rec.type === 'parking') { rec.subtype = ''; }
-        else { rec.best_winds = Registry.normWinds(el.querySelector('#e-best').value); rec.skip_winds = Registry.normWinds(el.querySelector('#e-skip').value); }
+        rec.subtype = (rec.type === 'stand' || rec.type === 'blind') ? (draft.subtype || '') : '';
+        if (rec.type === 'stand' || rec.type === 'blind') {
+          rec.best_winds = Registry.normWinds(el.querySelector('#e-best').value);
+          rec.skip_winds = Registry.normWinds(el.querySelector('#e-skip').value);
+        } else { rec.best_winds = []; rec.skip_winds = []; }
+        if (rec.type === 'food') {
+          rec.food_type = draft.food_type || 'other';
+          rec.crop = (el.querySelector('#e-crop').value || '').trim();
+          rec.status = draft.status || 'unknown';
+        }
+        if (rec.type === 'water') {
+          rec.water_type = draft.water_type || 'other';
+          rec.reliability = draft.reliability || 'unknown';
+        }
+        if (rec.type === 'scrape' || rec.type === 'rub') {
+          rec.freshness = draft.freshness || 'unknown';
+          rec.size = draft.size || 'unknown';
+          rec.licking_branch = draft.licking_branch === true || draft.licking_branch === 'true';
+          rec.count = parseInt(draft.count, 10) || undefined;
+          rec.sign_date = signDateFromWhen(draft.sign_when, draft.sign_date);
+        }
         if (isNew) {
           var ll = where === 'gps' && S.me ? [S.me.lat, S.me.lon] : [center.lat, center.lng];
-          rec.id = uid(rec.type === 'parking' ? 'parking' : 'pin'); rec.lat = ll[0]; rec.lon = ll[1];
-          rec.created = Date.now(); rec.source = 'user'; rec.extra = {};
+          var prefix = (window.PinsExport && PinsExport.PREFIX[rec.type]) || (rec.type === 'parking' ? 'parking' : 'pin');
+          rec.id = uid(prefix); rec.lat = ll[0]; rec.lon = ll[1];
+          rec.created = Date.now(); rec.source = 'user'; rec.extra = rec.extra || {};
         }
-        savePin(rec).then(function () { closeSheet(); toast(isNew ? 'Pin saved' : 'Pin updated'); });
+        savePin(rec).then(function () {
+          persistStorage();
+          var st = el.querySelector('#e-save-status'); if (st) st.hidden = false;
+          closeSheet(); toast('Saved on this phone');
+        });
       };
     });
+  }
+  function signDateFromWhen(when, existing) {
+    if (existing && /^\d{4}-\d{2}-\d{2}/.test(existing) && (!when || when === 'unknown')) return existing;
+    var d = new Date();
+    if (when === 'yesterday') d.setDate(d.getDate() - 1);
+    else if (when === 'this_week') d.setDate(d.getDate() - 3);
+    else if (when === 'older') d.setDate(d.getDate() - 14);
+    else if (when !== 'today') return existing || '';
+    return d.toISOString().slice(0, 10);
+  }
+  function persistStorage() {
+    if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(function () {});
   }
 
   // ---------- navigation ----------
   function parkingPins() { return S.pins.filter(function (p) { return p.type === 'parking'; }).sort(function (a, b) { return recency(b) - recency(a); }); }
-  function startNav(pinId) {
-    var p = getPin(pinId); if (!p) return;
-    S.nav = { pinId: pinId }; $('nav').hidden = false; $('nav-target').textContent = (p.type === 'parking' ? 'Back to ' : 'To ') + p.name;
+  function navTarget() { return S.nav && (S.nav.target || getPin(S.nav.pinId)); }
+  function startNav(pinId, target) {
+    var p = target || getPin(pinId); if (!p) return;
+    S.nav = { pinId: p.id, target: p }; $('nav').hidden = false; $('nav-target').textContent = (p.type === 'parking' ? 'Back to ' : 'To ') + p.name;
     if (!S.compassOn && needsCompassPermission()) $('nav-hint').textContent = 'Tap “Me” to turn on the compass';
     updateNav();
   }
   function stopNav() { S.nav = null; $('nav').hidden = true; if (S.navLine) { S.map.removeLayer(S.navLine); S.navLine = null; } }
   function updateNav() {
     if (!S.nav) return;
-    var p = getPin(S.nav.pinId); if (!p) return stopNav();
+    var p = navTarget(); if (!p) return stopNav();
     if (!S.me) { $('nav-bearing').textContent = '—'; $('nav-dist').textContent = 'Waiting for GPS…'; return; }
     var d = Geo.haversine(S.me.lat, S.me.lon, p.lat, p.lon), b = Geo.bearing(S.me.lat, S.me.lon, p.lat, p.lon), f = Geo.formatDistance(d);
     $('nav-bearing').textContent = Math.round(b) + '° ' + Geo.compass(b);
@@ -532,21 +812,100 @@
   }
 
   // ---------- export / import pins ----------
+  function userPins() { return (S.pins || []).filter(function (p) { return p && !p.ephemeral && String(p.id || '').indexOf('top10:') !== 0; }); }
+  function downloadOrShare(name, text, type) {
+    var blob = new Blob([text], { type: type || 'application/geo+json' });
+    try {
+      var file = new File([blob], name, { type: blob.type });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        return navigator.share({ files: [file], title: name }).catch(function () { downloadFile(name, text, type); });
+      }
+    } catch (e) {}
+    downloadFile(name, text, type);
+    return Promise.resolve();
+  }
   function exportPins() {
-    var data = { app: 'hunt-map', kind: 'pins', version: 1, exported: new Date().toISOString(), pins: S.pins };
-    downloadFile('hunt-map-pins-' + today() + '.json', JSON.stringify(data, null, 2));
-    toast(S.pins.length + ' pins exported');
+    var pins = userPins();
+    var data = { app: 'hunt-map', kind: 'pins', version: 1, exported: new Date().toISOString(), pins: pins };
+    downloadOrShare('hunt-map-pins-' + today() + '.json', JSON.stringify(data, null, 2), 'application/json');
+    toast(pins.length + ' pins exported · saved on this phone');
+  }
+  function inboxCollections() {
+    if (!window.PinsExport) throw new Error('PinsExport missing');
+    return PinsExport.allInbox(userPins());
+  }
+  function exportInboxFile(filename) {
+    var all = inboxCollections();
+    var gj = all[filename];
+    if (!gj) { toast('Unknown export ' + filename); return; }
+    return downloadOrShare(filename, JSON.stringify(gj, null, 2)).then(function () {
+      if (window.DB) DB.setSetting('inbox:' + filename, { written: new Date().toISOString(), geojson: gj });
+      toast(gj.features.length + ' pin(s) → ' + filename + ' · saved on this phone', 3200);
+    });
+  }
+  function exportAllInbox() {
+    var all = inboxCollections(), names = Object.keys(all);
+    var i = 0;
+    function next() {
+      if (i >= names.length) { toast('Four Scout files ready to share · saved on this phone', 4000); return; }
+      var name = names[i++];
+      downloadOrShare(name, JSON.stringify(all[name], null, 2)).then(function () {
+        if (window.DB) DB.setSetting('inbox:' + name, { written: new Date().toISOString(), geojson: all[name] });
+        setTimeout(next, 400);
+      });
+    }
+    next();
+  }
+  function scoutExportSheet() {
+    var all = inboxCollections();
+    var row = function (file, label) {
+      var n = all[file] ? all[file].features.length : 0;
+      return '<button data-inbox="' + file + '">Export ' + label + ' (' + n + ')</button>';
+    };
+    openSheet('<h2>Export for Scout</h2>' +
+      '<p class="saved-on-phone">Pins stay saved on this phone. Share or download these files, then they can be copied into the Hunt Scout inbox.</p>' +
+      '<div class="col">' +
+      row('user_water.geojson', 'water') +
+      row('user_food.geojson', 'food') +
+      row('user_scrape.geojson', 'scrapes') +
+      row('user_rub.geojson', 'rubs') +
+      '<button class="primary" id="m-export-all">Share all four files</button>' +
+      '<button id="m-export-back">Back</button></div>', function (el) {
+      el.querySelectorAll('[data-inbox]').forEach(function (b) {
+        b.onclick = function () { exportInboxFile(b.dataset.inbox); };
+      });
+      el.querySelector('#m-export-all').onclick = exportAllInbox;
+      el.querySelector('#m-export-back').onclick = moreSheet;
+    });
   }
   function importPinsFile(f) {
     return readFile(f).then(function (txt) {
       var data = JSON.parse(txt), list = Array.isArray(data) ? data : data.pins;
+      if (!Array.isArray(list) && data && data.type === 'FeatureCollection') {
+        list = (data.features || []).map(function (feat) {
+          var pr = feat.properties || {}, c = (feat.geometry && feat.geometry.coordinates) || [];
+          return Object.assign({}, pr, { lat: pr.lat != null ? +pr.lat : c[1], lon: pr.lon != null ? +pr.lon : c[0] });
+        });
+      }
       if (!Array.isArray(list)) throw new Error('No "pins" list in file');
       var good = list.filter(function (p) { return p && p.id && isFinite(p.lat) && isFinite(p.lon); }).map(function (p) {
-        return Object.assign({ type: 'stand', name: 'Pin', notes: '', best_winds: [], skip_winds: [], extra: {} }, p, { type: TYPES[p.type] ? p.type : 'stand' });
+        var type = TYPES[p.type] ? p.type : guessInboxType(p);
+        return Object.assign({ type: 'stand', name: 'Pin', notes: '', best_winds: [], skip_winds: [], extra: {}, source: 'user' }, p, { type: type });
       });
       var before = S.pins.length;
-      return DB.putMany('pins', good).then(loadPins).then(function () { toast(good.length + ' pins imported (' + (S.pins.length - before) + ' new)'); });
+      return DB.putMany('pins', good).then(loadPins).then(function () {
+        persistStorage();
+        toast(good.length + ' pins imported (' + (S.pins.length - before) + ' new) · saved on this phone');
+      });
     }).catch(function (e) { toast('Import failed: ' + e.message, 4000); });
+  }
+  function guessInboxType(p) {
+    var id = String((p && p.id) || '');
+    if (id.indexOf('w-') === 0 || p.water_type) return 'water';
+    if (id.indexOf('f-') === 0 || p.food_type) return 'food';
+    if (id.indexOf('s-') === 0) return 'scrape';
+    if (id.indexOf('r-') === 0) return 'rub';
+    return 'stand';
   }
 
   // ---------- offline maps ----------
@@ -639,7 +998,7 @@
 
   function scoutToggles() {
     if (!window.Layers) return '';
-    var keys = Layers.SCOUT_OVERLAYS.map(function (s) { return s.id; }).concat(['top10']);
+    var keys = Layers.SCOUT_OVERLAYS.map(function (s) { return s.id; }).concat(['top10', 'wind_grid']);
     return '<h3>Scout layers</h3>' + keys.map(function (k) {
       var def = OVERLAYS[k]; if (!def) return '';
       var st = S.overlayState[k] === 'missing' ? ' <span class="warn">(waiting)</span>' : '';
@@ -691,15 +1050,43 @@
   }
   function refreshWind() {
     var ll = S.me ? [S.me.lat, S.me.lon] : (S.map ? [S.map.getCenter().lat, S.map.getCenter().lng] : WMA_CENTER);
-    if (!window.NWS || !NWS.standWind) return;
+    if (!window.NWS || !NWS.standWind) { updateWindChip(); return; }
     NWS.standWind(ll[0], ll[1]).then(function (w) {
       S.wind = w || {};
-      var el = document.getElementById('st-net');
-      if (!el) return;
-      var dir = windDirection(w);
-      var spd = w.mph != null ? w.mph : (w.speedMph != null ? w.speedMph : (w.speed_mph != null ? Math.round(w.speed_mph) : (w.speed || '')));
-      el.textContent = dir ? ('Wind ' + dir + (spd === '' ? '' : ' ' + spd) + (String(spd).indexOf('mph') >= 0 || spd === '' ? '' : ' mph')) : 'Wind —';
-    }).catch(function () {});
+      S.windSource = 'nws';
+      applyStandWindFits();
+      updateWindChip();
+    }).catch(function () {
+      // fall back to a fresh wind grid; never treat a stale grid as live wind
+      if (S.windGrid && !Layers.isWindGridStale(S.windGrid)) {
+        var mid = S.map ? [S.map.getCenter().lat, S.map.getCenter().lng] : WMA_CENTER;
+        var n = Layers.nearestWind(S.windGrid, mid[0], mid[1]);
+        if (n && n.hours && n.hours[0]) {
+          S.wind = n.hours[0];
+          S.windSource = 'grid';
+        }
+      } else if (S.windGrid && Layers.isWindGridStale(S.windGrid)) {
+        S.windSource = 'stale';
+      }
+      applyStandWindFits();
+      updateWindChip();
+    });
+  }
+  function windChipText() {
+    var w = S.wind || {};
+    var dir = windDirection(w);
+    var spd = w.mph != null ? w.mph : (w.speedMph != null ? w.speedMph : (w.speed_mph != null ? Math.round(w.speed_mph) : (w.speed || w.speed_text || '')));
+    var core = dir ? ('Wind ' + dir + (spd === '' ? '' : ' ' + spd) + (String(spd).indexOf('mph') >= 0 || spd === '' ? '' : ' mph')) : '';
+    if (S.windSource === 'stale' || (S.windGridStale && !core)) return (core || 'Wind —') + ' · grid stale';
+    if (S.windSource === 'grid' && core) return core + ' · grid';
+    if (!navigator.onLine) return (core || 'Wind —') + ' · Offline';
+    return core || (navigator.onLine ? '' : 'Offline');
+  }
+  function updateWindChip() {
+    var el = document.getElementById('st-net');
+    if (!el) return;
+    el.textContent = windChipText() || (navigator.onLine ? '' : 'Offline');
+    el.className = navigator.onLine ? '' : 'off';
   }
   function windDirection(w) {
     var deg = w.direction_deg_from;
@@ -712,7 +1099,7 @@
     openSheet('<h2>Deer movement</h2>' +
       '<p>Wind right now: <b>' + esc(dir) + '</b>. Sit on the downwind side of the trail you are watching, and approach from downwind. This is a planning aid, not a solunar promise.</p>' +
       '<p>Early pre-rut: watch the downwind side of fresh rubs and scrapes between oak flats and bedding. Confirm sign yourself. Do not hang a stand on a guessed pin.</p>' +
-      '<p class="muted">Top 10 stands are not on the map. Q asked for them, but no field pins were saved, and I will not invent ten spots. Drop Water, Food, Scrape, and Rub pins as you find them. Delete is on every pin.</p>' +
+      '<p class="muted">Top 10 stands are on the map, numbered 1–10. Each badge is Good, OK, or Poor for today’s wind (live NWS, with the wind grid as backup). Drop Water, Food, Scrape, and Rub pins as you find them, then export them for Scout from More.</p>' +
       '<button id="mv-close" style="width:100%">Close</button>', function (el) { el.querySelector('#mv-close').onclick = closeSheet; });
   }
 
@@ -734,7 +1121,8 @@
       '<h3>Import / export</h3><div class="col">' +
       '<button id="m-gpx">Import GPX route</button>' +
       '<div class="row"><button id="m-sync">Sync from registry</button><button id="m-regfiles">Registry files…</button></div>' +
-      '<div class="row"><button id="m-export">Export pins</button><button id="m-import">Import pins</button></div></div>' +
+      '<button id="m-scout-export" class="primary">Export for Scout</button>' +
+      '<div class="row"><button id="m-export">Export all pins</button><button id="m-import">Import pins</button></div></div>' +
       '<button id="m-forecast" class="primary">5-day hunt forecast</button>' +
       '<div class="row"><button id="m-move">Deer movement</button><button id="m-clear-crumbs">Clear breadcrumbs</button></div>' +
       '<h3>About</h3><p class="muted">Mount Magazine WMA, Yell/Logan Co., AR. Maps: USGS The National Map (public domain). Boundary: AGFC. Parcels: Arkansas GIS Office (CAMP), approximate, not legal boundaries. Roads: USFS MVUM. Always confirm boundaries with posted signs and current AGFC regulations.</p>' +
@@ -771,6 +1159,7 @@
       el.querySelector('#m-gpx').onclick = function () { $('file-gpx').click(); };
       el.querySelector('#m-sync').onclick = function () { syncRegistry().catch(function () {}); };
       el.querySelector('#m-regfiles').onclick = function () { $('file-registry').click(); };
+      el.querySelector('#m-scout-export').onclick = scoutExportSheet;
       el.querySelector('#m-export').onclick = exportPins;
       el.querySelector('#m-import').onclick = function () { $('file-pins').click(); };
       el.querySelector('#m-close').onclick = closeSheet;
@@ -780,7 +1169,7 @@
     S.settings.night = !!on; document.body.classList.toggle('night', !!on);
     document.querySelector('meta[name=theme-color]').content = '#000000'; saveSettings();
   }
-  function setNetStatus() { var el = $('st-net'); el.textContent = navigator.onLine ? '' : 'Offline'; el.className = navigator.onLine ? '' : 'off'; }
+  function setNetStatus() { updateWindChip(); }
 
   // ---------- wire up ----------
   function bindUI() {
@@ -810,7 +1199,9 @@
   // test hooks (used by tests/e2e.mjs; harmless in production)
   S.api = { importGpxFiles: importGpxFiles, applyRegistry: applyRegistry, syncRegistry: syncRegistry, importRegistryFiles: importRegistryFiles,
     setBasemap: setBasemap, setOverlay: setOverlay, setNight: setNight, startNav: startNav, backToTruck: backToTruck, savePin: savePin,
-    loadPins: loadPins, offlineSheet: offlineSheet, setParcels: setParcels, onPos: onPos, closeSheet: closeSheet };
+    loadPins: loadPins, offlineSheet: offlineSheet, setParcels: setParcels, onPos: onPos, closeSheet: closeSheet,
+    setTop10: setTop10, exportInboxFile: exportInboxFile, exportAllInbox: exportAllInbox, inboxCollections: inboxCollections,
+    scoutExportSheet: scoutExportSheet, editPin: editPin };
 
   DB.getSetting('settings', null).then(function (s) {
     if (s) Object.assign(S.settings, s);
@@ -819,7 +1210,9 @@
     var wantBoundary = S.settings.boundary !== false;
     setOverlay('boundary', true).then(function () { if (!wantBoundary) setOverlay('boundary', false); });
     installScoutOverlays();
-    ['parcels', 'mvum'].concat(window.Layers ? Layers.SCOUT_OVERLAYS.map(function (s) { return s.id; }).concat(['top10']) : []).forEach(function (k) { if (S.settings[k]) setOverlay(k, true); });
+    if (S.settings.top10 !== false) S.settings.top10 = true;
+    ['parcels', 'mvum'].concat(window.Layers ? Layers.SCOUT_OVERLAYS.map(function (s) { return s.id; }).concat(['top10', 'wind_grid']) : []).forEach(function (k) { if (S.settings[k]) setOverlay(k, true); });
+    loadBackupWind();
     refreshWind(); setInterval(refreshWind, 15 * 60 * 1000);
     return Promise.all([loadPins(), loadRoutes(), DB.getSetting('crumbs', []).then(function (c) {
       S.crumbs = window.Trail ? Trail.prune(c || [], Date.now()) : [];

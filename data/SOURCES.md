@@ -60,3 +60,12 @@ Empty layers (ridge_spurs, drainages, food_sources, food_influence, deer_sign, s
 
 ## Wind
 Live: NWS (`js/nws.js`). Optional grid: `wind_grid.geojson.gz.b64` (stale-ok). Scout owns `wind_refresh.py`.
+
+## data/top10_stands.geojson — Scout ranked stands
+- Synced from `/workspace/hunt-scout/mapdata/top10_stands.geojson` (ids `mm-01`…`mm-10`).
+- Properties kept as published by Hunt Scout: `rank_score`, `rank_change`, `best_winds`, water/food/sign bonuses, `sign_hot`.
+- Shown on the map by default. Wind-fit colors use live NWS first; `wind_grid` is backup only if it is less than 2 hours old.
+
+## data/wind_grid.geojson.gz.b64 — NWS backup wind field
+- Base64 of gzip of Scout's `wind_grid.geojson`. Not used as live wind when `updated` is more than 2 hours old (`Layers.isWindGridStale`).
+- Raw `data/wind_grid.geojson` stays gitignored (large). Refresh with `scripts/sync-scout-layers.sh` after Scout runs `wind_refresh.py`.

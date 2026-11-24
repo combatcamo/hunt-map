@@ -124,9 +124,8 @@
       var name = /^mm-\d+/i.test(rawName) ? rawName : (id.toUpperCase() + ' ' + rawName);
       var rank = p.rank != null ? +p.rank : (parseInt((id.match(/\d+/) || [i + 1])[0], 10) || (i + 1));
       var chg = p.rank_change;
-      if (chg == null || chg === '') chg = 0;
-      else if (typeof chg === 'string' && !/^[+-]?\d+(\.\d+)?$/.test(chg.trim())) chg = 0;
-      else chg = +chg;
+      if (chg == null || chg === '') chg = '0';
+      else chg = String(chg).trim();
       return {
         id: id, name: name, rank: rank, type: 'stand', subtype: p.feature_type || '',
         lat: lat, lon: lon, elevation_ft: p.elevation_ft, feature_type: p.feature_type || '',
@@ -198,6 +197,61 @@
     }).catch(fetchWindGridNet).then(markStale);
   }
 
+
+  var COMPASS16 = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+  function degToCompass(deg) {
+    if (deg == null || deg === '' || !isFinite(+deg)) return '';
+    return COMPASS16[Math.round(((+deg % 360) + 360) % 360 / 22.5) % 16];
+  }
+  function compassFromWind(wind) {
+    if (!wind) return '';
+    var c = String(wind.compass || wind.direction || wind.windDirection || '').trim().toUpperCase();
+    if (COMPASS16.indexOf(c) >= 0) return c;
+    return degToCompass(wind.direction_deg_from);
+  }
+  /**
+   * Wind fit for a stand. Prefer a live NWS wind object; pass gridHour as backup.
+   * Returns {fit:'good'|'fair'|'poor'|'unknown', label, compass, source, stale}.
+   * green/good = current in best_winds; red/poor = in skip_winds; yellow/fair = known but neither;
+   * unknown = no usable wind (including a stale grid with no live NWS).
+   */
+  function windFit(stand, liveWind, gridHour, gridStale) {
+    var compass = compassFromWind(liveWind);
+    var source = compass ? 'nws' : '';
+    if (!compass && gridHour && !gridStale) {
+      compass = compassFromWind(gridHour);
+      if (compass) source = 'grid';
+    }
+    var stale = !!gridStale;
+    if (!compass) {
+      return { fit: 'unknown', label: stale ? 'Wind unknown (grid stale)' : 'Wind unknown', compass: '', source: source, stale: stale };
+    }
+    var best = (stand && stand.best_winds) || [];
+    var skip = (stand && stand.skip_winds) || [];
+    if (skip.indexOf(compass) >= 0) {
+      return { fit: 'poor', label: 'Poor wind ' + compass, compass: compass, source: source, stale: false };
+    }
+    if (best.indexOf(compass) >= 0) {
+      return { fit: 'good', label: 'Good wind ' + compass, compass: compass, source: source, stale: false };
+    }
+    return { fit: 'fair', label: 'OK wind ' + compass, compass: compass, source: source, stale: false };
+  }
+  function formatNear(v) {
+    if (!v) return '';
+    if (typeof v === 'string') return v;
+    var name = v.name || v.id || '';
+    var d = v.distance_m != null ? Math.round(+v.distance_m) : null;
+    return name + (d != null && isFinite(d) ? ' (' + d + ' m)' : '');
+  }
+  function formatRankChange(chg) {
+    var s = (chg == null || chg === '') ? '0' : String(chg).trim();
+    if (s === '0' || s === '+0' || s === '-0') return '';
+    if (/^new$/i.test(s)) return 'new';
+    if (/^[+]?\d+$/.test(s)) return '↑' + String(Math.abs(+s));
+    if (/^-\d+$/.test(s)) return '↓' + String(Math.abs(+s));
+    return s;
+  }
+
   /** Nearest wind_grid point to lat/lon; returns feature properties (with hours[]) or null. */
   function nearestWind(gj, lat, lon) {
     if (!gj || !gj.features || !gj.features.length) return null;
@@ -224,9 +278,11 @@
   }
 
   var api = { SCOUT_OVERLAYS: SCOUT_OVERLAYS, TOP10_FILE: TOP10_FILE, WIND_GRID_FILE: WIND_GRID_FILE,
-    WIND_GRID_TTL_MS: WIND_GRID_TTL_MS, WIND_GRID_STALE_MS: WIND_GRID_STALE_MS,
+    WIND_GRID_TTL_MS: WIND_GRID_TTL_MS, WIND_GRID_STALE_MS: WIND_GRID_STALE_MS, COMPASS16: COMPASS16,
     windGridTime: windGridTime, isWindGridStale: isWindGridStale, probe: probe, fetchGj: fetchGj, makeOverlay: makeOverlay,
     normalizeTop10: normalizeTop10, loadTop10: loadTop10, loadWindGrid: loadWindGrid, nearestWind: nearestWind,
+    degToCompass: degToCompass, compassFromWind: compassFromWind, windFit: windFit,
+    formatNear: formatNear, formatRankChange: formatRankChange,
     loadMvum: loadMvum, popupHtml: popupHtml, styleFor: styleFor };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.Layers = api;
 })(this);
