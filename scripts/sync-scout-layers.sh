@@ -14,8 +14,8 @@ from shapely.geometry import shape, mapping
 SRC, DEST = Path(sys.argv[1]), Path(sys.argv[2])
 INCLUDE = [
   'wma_boundary','state_park_exclusion','roads_100ft_buffer','roads_centerlines',
-  'access_parking','saddles','benches','likely_bedding','pinch_points','water','top10_stands',
-  'food_sources','food_influence'  # picked up when Scout ships non-empty files
+  'access_parking','saddles','benches','likely_bedding','pinch_points','water','water_influence',
+  'top10_stands','food_sources','food_influence','deer_sign','sign_lines','sign_influence'
 ]
 def round_coords(c, n=5):
   if isinstance(c[0], (int, float)): return [round(float(c[0]), n), round(float(c[1]), n)]
@@ -35,7 +35,7 @@ for name in INCLUDE:
   if not src.exists() or src.stat().st_size <= 50:
     print(f'  (skip) {name}'); continue
   tol = 0.00012 if name.startswith('roads') else (0.00005 if name in ('wma_boundary','state_park_exclusion','roads_100ft_buffer') else None)
-  if name in ('access_parking','top10_stands','saddles','benches','pinch_points','water','likely_bedding'): tol = None
+  if name in ('access_parking','top10_stands','saddles','benches','pinch_points','water','likely_bedding','deer_sign'): tol = None
   gj = slim(src, tol=tol)
   if not gj['features']:
     out = DEST / f'{name}.geojson'
@@ -62,7 +62,8 @@ print(f'Synced Scout layers -> {DEST}')
 PY
 
 for expect in wma_boundary state_park_exclusion roads_100ft_buffer roads_centerlines access_parking \
-              saddles benches likely_bedding pinch_points water top10_stands food_sources food_influence; do
+              saddles benches likely_bedding pinch_points water water_influence top10_stands \
+              food_sources food_influence deer_sign sign_lines sign_influence; do
   [ -f "$DEST/$expect.geojson" ] || echo "  (waiting) $expect.geojson"
 done
 [ -f "$DEST/wind_grid.geojson.gz.b64" ] || echo "  (waiting) wind_grid.geojson.gz.b64"
